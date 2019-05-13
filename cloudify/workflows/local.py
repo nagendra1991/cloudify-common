@@ -208,6 +208,7 @@ def _validate_node(node):
 def _prepare_nodes_and_instances(nodes, node_instances, ignored_modules):
 
     def scan(parent, name, node):
+        return
         for operation in parent.get(name, {}).values():
             if not operation['operation']:
                 continue
@@ -468,6 +469,9 @@ class _Storage(object):
     def get_workdir(self):
         raise NotImplementedError()
 
+    def get_plugins(self):
+        raise NotImplementedError()
+
     def get_secret(self):
         raise NotImplementedError()
 
@@ -577,6 +581,9 @@ class InMemoryStorage(_Storage):
     def store_executions(self, executions):
         self._executions = executions
 
+    def get_plugins(self):
+        return []
+
 
 class FileStorage(_Storage):
 
@@ -661,6 +668,14 @@ class FileStorage(_Storage):
 
     def get_blueprint_path(self):
         return self._blueprint_path
+
+    def get_plugins(self):
+        plugin_storage = os.path.join(self._root_storage_dir, 'plugins.json')
+        try:
+            with open(plugin_storage) as f:
+                return json.load(f)
+        except (IOError, ValueError):
+            return []
 
     def _load_instance(self, node_instance_id):
         with self._lock(node_instance_id):

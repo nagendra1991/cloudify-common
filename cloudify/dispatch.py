@@ -29,6 +29,7 @@ import StringIO
 import Queue
 
 from contextlib import contextmanager
+from distutils.version import StrictVersion
 
 from cloudify_rest_client.executions import Execution
 from cloudify_rest_client.constants import VisibilityState
@@ -175,6 +176,28 @@ class TimeoutWrapper(object):
             self.timer.cancel()
 
 
+class _JSONEncoderWithStorage(json.JSONEncoder):
+    def default(self, obj):
+        from cloudify.workflows.local import FileStorage
+        if isinstance(obj, FileStorage):
+            return {
+                '__filestorage__': {
+                    'name': obj.name,
+                    'dir': obj._root_storage_dir
+                }
+            }
+        return super(_JSONEncoderWithStorage, self).default(obj)
+
+
+def load_storage(input_dict):
+    from cloudify.workflows.local import FileStorage
+    if '__filestorage__' in input_dict:
+        fs = FileStorage(input_dict['__filestorage__']['dir'])
+        fs.load(input_dict['__filestorage__']['name'])
+        return fs
+    return input_dict
+
+
 class TaskHandler(object):
     NOTSET = object()
 
@@ -187,37 +210,36 @@ class TaskHandler(object):
         self._logfiles = {}
         self._process_registry = process_registry
 
-    def handle_or_dispatch_to_subprocess_if_remote(self):
-        if self.cloudify_context.get('task_target'):
-            return self.dispatch_to_subprocess()
-        else:
-            return self.handle()
-
     def handle(self):
         raise NotImplementedError('Implemented by subclasses')
 
     def run_subprocess(self, *subprocess_args, **subprocess_kwargs):
-        subprocess_kwargs.setdefault('stderr', subprocess.STDOUT)
-        subprocess_kwargs.setdefault('stdout', subprocess.PIPE)
+        local = bool(self.cloudify_context.get('local'))
+        if not local:
+            subprocess_kwargs.setdefault('stderr', subprocess.STDOUT)
+            subprocess_kwargs.setdefault('stdout', subprocess.PIPE)
         p = subprocess.Popen(*subprocess_args, **subprocess_kwargs)
         if self._process_registry:
             self._process_registry.register(self, p)
 
-        with TimeoutWrapper(self.cloudify_context, p) as timeout_wrapper:
-            with self.logfile() as f:
-                while True:
-                    line = p.stdout.readline()
-                    if line:
-                        f.write(line)
-                    if p.poll() is not None:
-                        break
+        if not local:
+            with TimeoutWrapper(self.cloudify_context, p) as timeout_wrapper:
+                with self.logfile() as f:
+                    while True:
+                        line = p.stdout.readline()
+                        if line:
+                            f.write(line)
+                        if p.poll() is not None:
+                            break
+        else:
+            timeout_wrapper = None
+            p.wait()
 
-        cancelled = False
         if self._process_registry:
             cancelled = self._process_registry.is_cancelled(self)
             self._process_registry.unregister(self, p)
 
-        if timeout_wrapper.timeout_encountered:
+        if timeout_wrapper and timeout_wrapper.timeout_encountered:
             message = 'Process killed due to timeout of %d seconds' % \
                       timeout_wrapper.timeout
             if p.poll() is None:
@@ -266,7 +288,7 @@ class TaskHandler(object):
                     'cloudify_context': self.cloudify_context,
                     'args': self.args,
                     'kwargs': self.kwargs
-                }, f)
+                }, f, cls=_JSONEncoderWithStorage)
             env = self._build_subprocess_env()
             command_args = [sys.executable, '-u', '-m', 'cloudify.dispatch',
                             dispatch_dir]
@@ -356,9 +378,16 @@ class TaskHandler(object):
 
     def _extract_plugin_dir(self):
         plugin = self.cloudify_context.get('plugin', {})
+        if not plugin:
+            return
         plugin_name = plugin.get('name')
         package_name = plugin.get('package_name')
         package_version = plugin.get('package_version')
+        if self.cloudify_context['local']:
+            return self._find_local_plugin_dir(
+                package_name or plugin_name,
+                package_version)
+
         deployment_id = self.cloudify_context.get('deployment_id',
                                                   SYSTEM_DEPLOYMENT)
         tenant = self.cloudify_context.get('tenant', {})
@@ -375,6 +404,21 @@ class TaskHandler(object):
             plugin_name=plugin_name,
             tenant_name=tenant_name,
             sys_prefix_fallback=False)
+
+    def _find_local_plugin_dir(self, name, version=None):
+        storage = self.cloudify_context['storage']
+        plugins = storage.get_plugins()
+        if version:
+            for plugin in plugins:
+                if plugin['name'] == name and plugin['version'] == version:
+                    break
+        else:
+            candidates = [p for p in plugins if p['name'] == name]
+            plugin = sorted(
+                candidates,
+                key=lambda plugin: StrictVersion(plugin['version']),
+                reverse=True)[0]
+        return plugin['directory']
 
     def setup_logging(self):
         logs.setup_subprocess_logger()
@@ -791,13 +835,13 @@ def dispatch(__cloudify_context, *args, **kwargs):
     handler = dispatch_handler_cls(cloudify_context=__cloudify_context,
                                    args=args,
                                    kwargs=kwargs)
-    return handler.handle_or_dispatch_to_subprocess_if_remote()
+    return handler.dispatch_to_subprocess()
 
 
 def main():
     dispatch_dir = sys.argv[1]
     with open(os.path.join(dispatch_dir, 'input.json')) as f:
-        dispatch_inputs = json.load(f)
+        dispatch_inputs = json.load(f, object_hook=load_storage)
     cloudify_context = dispatch_inputs['cloudify_context']
     args = dispatch_inputs['args']
     kwargs = dispatch_inputs['kwargs']
