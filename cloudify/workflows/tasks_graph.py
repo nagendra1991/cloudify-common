@@ -16,6 +16,7 @@
 
 import time
 from functools import wraps
+from collections import deque
 
 
 import networkx as nx
@@ -43,6 +44,29 @@ def make_or_get_graph(f):
             graph = TaskDependencyGraph.restore(workflow_ctx, graph)
         return graph
     return _inner
+
+
+class GraphNode(object):
+    def __init__(self, task):
+        self._task = task
+        self._dependencies = set()
+        self._dependents = set()
+
+    @property
+    def id(self):
+        return self._task.id
+
+    def __hash__(self):
+        return self._task.id
+
+    def __eq__(self, other):
+        return self.id == other.id
+
+
+class RootNode(GraphNode):
+    def __init__(self):
+        super(RootNode, self).__init__(None)
+        self.id = None
 
 
 class TaskDependencyGraph(object):
@@ -95,6 +119,8 @@ class TaskDependencyGraph(object):
         self._error = None
         self._stored = False
         self.id = graph_id
+        self._root_node = RootNode()
+        self._tasks = {None: self._root_node}
 
     def store(self, name):
         serialized_tasks = []
@@ -114,7 +140,8 @@ class TaskDependencyGraph(object):
 
         :param task: The task
         """
-        self.graph.add_node(task.id, task=task)
+        self._tasks[task.id] = GraphNode(task)
+        self.add_dependency(task, self._root_node)
 
     def get_task(self, task_id):
         """Get a task instance that was inserted to this graph by its id
@@ -123,14 +150,15 @@ class TaskDependencyGraph(object):
         :return: a WorkflowTask instance for the requested task if found.
                  None, otherwise.
         """
-        data = self.graph.node.get(task_id)
-        return data['task'] if data is not None else None
+        data = self._tasks.get(task_id)
+        return data._task if data is not None else None
 
     def remove_task(self, task):
         """Remove the provided task from the graph
 
         :param task: The task
         """
+        raise NotImplementedError()
         if task.is_subgraph:
             for subgraph_task in task.tasks.values():
                 self.remove_task(subgraph_task)
@@ -148,13 +176,17 @@ class TaskDependencyGraph(object):
         :param src_task: The source task
         :param dst_task: The target task
         """
-        if not self.graph.has_node(src_task.id):
+        if src_task.id not in self._tasks:
             raise RuntimeError('source task {0} is not in graph (task id: '
                                '{1})'.format(src_task, src_task.id))
-        if not self.graph.has_node(dst_task.id):
+        if dst_task.id not in self._tasks:
             raise RuntimeError('destination task {0} is not in graph (task '
                                'id: {1})'.format(dst_task, dst_task.id))
-        self.graph.add_edge(src_task.id, dst_task.id)
+        self._tasks[dst_task.id]._dependents.add(self._tasks[src_task.id])
+        self._tasks[src_task.id].dependencies.add(self._tasks[dst_task.id])
+        if dst_task.id is not None \
+                and None in self._tasks[src_task.id].dependencies:
+            self._tasks[src_task.id].dependencies.remove(None)
 
     def sequence(self):
         """
@@ -283,10 +315,15 @@ class TaskDependencyGraph(object):
                     task.containing_subgraph)))
 
     def tasks_iter(self):
-        """
-        An iterator on tasks added to the graph
-        """
-        return (data['task'] for _, data in self.graph.nodes_iter(data=True))
+        """An iterator on tasks added to the graph"""
+        seen = set([])
+        nodes = deque([self._root_node])
+        while nodes:
+            current = nodes.popleft()
+            seen.add(current.id)
+            yield current
+            nodes += [dependent for dependent in current._dependents
+                      if seen.issuperset(dependent._dependencies)]
 
     def _handle_executable_task(self, task):
         """Handle executable task"""
@@ -320,7 +357,7 @@ class TaskDependencyGraph(object):
             self.graph.add_edges_from(added_edges)
 
 
-class forkjoin(object):
+class forkjoin(object):  # NOQA
     """
     A simple wrapper for tasks. Used in conjunction with TaskSequence.
     Defined to make the code easier to read (instead of passing a list)
