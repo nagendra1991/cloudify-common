@@ -15,6 +15,7 @@
 
 
 import time
+import Queue
 from functools import wraps
 from collections import deque
 
@@ -57,7 +58,7 @@ class GraphNode(object):
         return self._task.id
 
     def __hash__(self):
-        return self._task.id
+        return hash(self._task.id)
 
     def __eq__(self, other):
         return self.id == other.id
@@ -66,7 +67,13 @@ class GraphNode(object):
 class RootNode(GraphNode):
     def __init__(self):
         super(RootNode, self).__init__(None)
-        self.id = None
+
+    @property
+    def id(self):
+        return None
+
+    def __hash__(self):
+        return 0
 
 
 class TaskDependencyGraph(object):
@@ -183,10 +190,11 @@ class TaskDependencyGraph(object):
             raise RuntimeError('destination task {0} is not in graph (task '
                                'id: {1})'.format(dst_task, dst_task.id))
         self._tasks[dst_task.id]._dependents.add(self._tasks[src_task.id])
-        self._tasks[src_task.id].dependencies.add(self._tasks[dst_task.id])
+        self._tasks[src_task.id]._dependencies.add(self._tasks[dst_task.id])
         if dst_task.id is not None \
-                and None in self._tasks[src_task.id].dependencies:
-            self._tasks[src_task.id].dependencies.remove(None)
+                and self._root_node in self._tasks[src_task.id]._dependencies:
+            self._tasks[src_task.id]._dependencies.remove(self._root_node)
+            self._root_node._dependents.remove(self._tasks[src_task.id])
 
     def sequence(self):
         """
@@ -223,50 +231,19 @@ class TaskDependencyGraph(object):
         # clear error, in case the tasks graph has been reused
         self._error = None
 
-        while self._error is None:
-
-            if self._is_execution_cancelled():
-                raise api.ExecutionCancelled()
-
-            # handle all terminated tasks
-            # it is important this happens before handling
-            # executable tasks so we get to make tasks executable
-            # and then execute them in this iteration (otherwise, it would
-            # be the next one)
-            for task in self._terminated_tasks():
-                self._handle_terminated_task(task)
-
-            # if there was an error when handling terminated tasks, don't
-            # continue on to sending new tasks in handle_executable
-            if self._error:
-                break
-
-            # handle all executable tasks
-            for task in self._executable_tasks():
-                self._handle_executable_task(task)
-
-            # no more tasks to process, time to move on
-            if len(self.graph.node) == 0:
-                if self._error:
-                    raise self._error
-                return
-            # sleep some and do it all over again
-            else:
-                time.sleep(0.1)
-
-        # if we got here, we had an error in a task, and we're just waiting
-        # for other tasks to return, but not sending new tasks
-        deadline = time.time() + self.ctx.wait_after_fail
-        while deadline > time.time():
-            if self._is_execution_cancelled():
-                raise api.ExecutionCancelled()
-            for task in self._terminated_tasks():
-                self._handle_terminated_task(task)
-            if not any(self._sent_tasks()):
-                break
-            else:
-                time.sleep(0.1)
-        raise self._error
+        waiting = 0
+        current = set(self._root_node._dependents)
+        queue = Queue.Queue()
+        while current or waiting:
+            while current:
+                node = current.pop()
+                result = node._task.apply_async()
+                result.add_callback(lambda *a: queue.put(a), node)
+                waiting += 1
+            _, node = queue.get()
+            waiting -= 1
+            for dependent in node._dependents:
+                current.add(dependent)
 
     @staticmethod
     def _is_execution_cancelled():
@@ -321,7 +298,8 @@ class TaskDependencyGraph(object):
         while nodes:
             current = nodes.popleft()
             seen.add(current.id)
-            yield current
+            if current is not self._root_node:
+                yield current
             nodes += [dependent for dependent in current._dependents
                       if seen.issuperset(dependent._dependencies)]
 
@@ -496,6 +474,7 @@ class SubgraphTask(tasks.WorkflowTask):
             self.set_state(tasks.TASK_SUCCEEDED)
         else:
             self.set_state(tasks.TASK_STARTED)
+        return self.async_result
 
     def task_terminated(self, task, new_task=None):
         del self.tasks[task.id]

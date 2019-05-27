@@ -576,6 +576,18 @@ def restart(ctx, stop_parms, start_parms, run_by_dependency_order, type_names,
           node_ids, node_instance_ids, **kwargs)
 
 
+def w1(ctx):
+    graph = ctx.graph_mode()
+    for instance in ctx.node_instances:
+        subgraph = graph.subgraph(instance.id)
+        seq = subgraph.sequence()
+        for _ in range(10000):
+            seq.add(
+                instance.send_event('hello')
+            )
+    graph.execute()
+
+
 @make_or_get_graph
 def _make_execute_operation_graph(ctx, operation, operation_kwargs,
                                   allow_kwargs_override,

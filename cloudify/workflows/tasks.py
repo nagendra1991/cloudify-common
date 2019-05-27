@@ -706,6 +706,7 @@ class LocalWorkflowTask(WorkflowTask):
                 exc_type, exception, tb = sys.exc_info()
                 self.async_result._holder.error = (exception, tb)
                 self.set_state(new_task_state)
+            self.async_result.mark_done()
 
         self.async_result = LocalWorkflowTaskResult(self)
 
@@ -795,6 +796,10 @@ class WorkflowTaskResult(object):
 
     def __init__(self, task):
         self.task = task
+        self._callbacks = []
+
+    def add_callback(self, f, *args, **kwargs):
+        self._callbacks.append((f, args, kwargs))
 
     def _process(self, retry_on_failure):
         if self.task.workflow_context.internal.graph_mode:
@@ -918,10 +923,17 @@ class LocalWorkflowTaskResult(WorkflowTaskResult):
         else:
             return self._holder.result
 
+    def mark_done(self):
+        for cb, args, kwargs in self._callbacks:
+            cb(self.result, *args, **kwargs)
+
 
 class StubAsyncResult(object):
     """Stub async result that always returns None"""
     result = None
+
+    def add_callback(self, f, *args, **kwargs):
+        f(self.result, *args, **kwargs)
 
 
 class HandlerResult(object):

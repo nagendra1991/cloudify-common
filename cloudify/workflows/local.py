@@ -152,7 +152,7 @@ class _Environment(object):
             return rv
         except Exception as e:
             self.storage.execution_ended(execution_id, e)
-            raise e
+            raise
 
 
 def init_env(blueprint_path,
