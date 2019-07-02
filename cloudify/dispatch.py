@@ -555,13 +555,14 @@ class WorkflowHandler(TaskHandler):
     def update_execution_status(self):
         return self.cloudify_context.get('update_execution_status', True)
 
-    def _handle_remote_workflow(self):
+    def _get_execution_status(self):
         tenant = self.ctx._context['tenant'].get('original_name',
                                                  self.ctx.tenant_name)
         rest = get_rest_client(tenant=tenant)
-        execution = rest.executions.get(self.ctx.execution_id,
-                                        _include=['status'])
-        if execution.status == Execution.STARTED:
+        return rest.executions.get(self.ctx.execution_id, _include=['status'])
+
+    def _handle_remote_workflow(self):
+        if self._get_execution_status() == Execution.STARTED:
             self.ctx.resume = True
 
         try:
@@ -607,9 +608,8 @@ class WorkflowHandler(TaskHandler):
                     continue
 
                 # check for 'cancel' requests
-                execution = rest.executions.get(self.ctx.execution_id,
-                                                _include=['status'])
-                if execution.status in [
+                status = self._get_execution_status()
+                if status in [
                         Execution.CANCELLING,
                         Execution.FORCE_CANCELLING,
                         Execution.KILL_CANCELLING]:
@@ -622,13 +622,13 @@ class WorkflowHandler(TaskHandler):
                     # child thread or possibly 'force-cancelling' requests
                     api.cancel_request = True
 
-                if execution.status == Execution.KILL_CANCELLING:
+                if status == Execution.KILL_CANCELLING:
                     # if a custom workflow function must attempt some cleanup,
                     # it might attempt to catch SIGTERM, and confirm using this
                     # flag that it is being kill-cancelled
                     api.kill_request = True
 
-                if execution.status in [
+                if status in [
                         Execution.FORCE_CANCELLING,
                         Execution.KILL_CANCELLING]:
                     # force-cancel additionally stops this loop immediately
@@ -641,8 +641,12 @@ class WorkflowHandler(TaskHandler):
                 self._workflow_succeeded()
             return result
         except exceptions.ProcessExecutionError as e:
-            self._workflow_failed(e, e.traceback)
-            raise
+            # the process died while we were kill-cancelling, that's expected
+            if self._get_execution_status() == Execution.KILL_CANCELLING:
+                self._workflow_cancelled()
+            else:
+                self._workflow_failed(e, e.traceback)
+                raise
         except BaseException as e:
             self._workflow_failed(e, traceback.format_exc())
             raise
