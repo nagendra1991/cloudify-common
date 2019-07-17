@@ -104,18 +104,21 @@ class RuntimeEvaluationStorage(object):
                  get_node_instance_method,
                  get_node_method,
                  get_secret_method,
-                 get_capability_method):
+                 get_capability_method,
+                 get_input_method):
         self._get_node_instances_method = get_node_instances_method
         self._get_node_instance_method = get_node_instance_method
         self._get_node_method = get_node_method
         self._get_secret_method = get_secret_method
         self._get_capability_method = get_capability_method
+        self._get_input_method = get_input_method
 
         self._node_to_node_instances = {}
         self._node_instances = {}
         self._nodes = {}
         self._secrets = {}
         self._capabilities = {}
+        self._inputs = {}
 
     def get_node_instances(self, node_id):
         if node_id not in self._node_to_node_instances:
@@ -142,6 +145,12 @@ class RuntimeEvaluationStorage(object):
             secret = self._get_secret_method(secret_key)
             self._secrets[secret_key] = secret.value
         return self._secrets[secret_key]
+
+    def get_input(self, input_key):
+        if input_key not in self._inputs:
+            value = self._get_input_method(input_key)
+            self._inputs[input_key] = value
+        return self._inputs[input_key]
 
     def get_capability(self, capability_path):
         capability_id = _convert_attribute_list_to_python_syntax_string(
@@ -228,16 +237,8 @@ class GetInput(Function):
                 "get_input function references an "
                 "unknown input '{0}'.".format(input_value))
 
-    def evaluate(self, plan):
-        if isinstance(self.input_value, list):
-            return self._get_input_attribute(plan.inputs[self.input_value[0]])
-        if self.input_value not in plan.inputs:
-            raise exceptions.UnknownInputError(
-                "get_input function references an "
-                "unknown input '{0}'.".format(self.input_value))
-        return plan.inputs[self.input_value]
-
     def _get_input_attribute(self, root):
+        # TODO reuse this method in validate
         value = root
         for index, attr in enumerate(self.input_value[1:]):
             if isinstance(value, dict):
@@ -274,9 +275,13 @@ class GetInput(Function):
                             self.input_value[:index + 1]), attr))
         return value
 
+    def evaluate(self, plan):
+        if 'operation' in self.context:
+            self.context['operation']['has_intrinsic_functions'] = True
+        return self.raw
+
     def evaluate_runtime(self, storage):
-        raise RuntimeError('runtime evaluation for {0} is not supported'
-                           .format(self.name))
+        return storage.get_input(self.input_value)
 
 
 @register(name='get_property', func_eval_type=STATIC_FUNC)
@@ -783,7 +788,8 @@ def evaluate_functions(payload, context,
                        get_node_instance_method,
                        get_node_method,
                        get_secret_method,
-                       get_capability_method):
+                       get_capability_method,
+                       get_input_method):
     """Evaluate functions in payload.
 
     :param payload: The payload to evaluate.
@@ -799,7 +805,8 @@ def evaluate_functions(payload, context,
                                          get_node_instance_method,
                                          get_node_method,
                                          get_secret_method,
-                                         get_capability_method)
+                                         get_capability_method,
+                                         get_input_method)
     scan.scan_properties(payload,
                          handler,
                          scope=None,
@@ -914,14 +921,16 @@ def runtime_evaluation_handler(get_node_instances_method,
                                get_node_instance_method,
                                get_node_method,
                                get_secret_method,
-                               get_capability_method):
+                               get_capability_method,
+                               get_input_method):
     return _handler('evaluate_runtime',
                     storage=RuntimeEvaluationStorage(
                         get_node_instances_method=get_node_instances_method,
                         get_node_instance_method=get_node_instance_method,
                         get_node_method=get_node_method,
                         get_secret_method=get_secret_method,
-                        get_capability_method=get_capability_method))
+                        get_capability_method=get_capability_method,
+                        get_input_method=get_input_method))
 
 
 def validate_functions(plan):
