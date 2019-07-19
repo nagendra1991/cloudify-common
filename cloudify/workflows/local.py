@@ -107,7 +107,8 @@ class _Environment(object):
             get_node_instance_method=self.storage.get_node_instance,
             get_node_method=self.storage.get_node,
             get_secret_method=self.storage.get_secret,
-            get_capability_method=self.storage.get_capability)
+            get_capability_method=self.storage.get_capability,
+            get_input_method=self.storage.get_input)
 
     def execute(self,
                 workflow,
@@ -436,10 +437,15 @@ class _Storage(object):
         if node is None:
             raise RuntimeError('Node {0} does not exist'
                                .format(node_id))
-        return copy.deepcopy(node)
+        node = copy.deepcopy(node)
+        self.env.evaluate_functions(node['properties'], None)
+        return node
 
     def get_nodes(self):
-        return copy.deepcopy(self._nodes.values())
+        nodes = copy.deepcopy(self._nodes.values())
+        for node in nodes:
+            self.env.evaluate_functions(node['properties'], None)
+        return nodes
 
     def get_node_instance(self, node_instance_id):
         return copy.deepcopy(self._get_node_instance(node_instance_id))
@@ -464,6 +470,9 @@ class _Storage(object):
 
     def get_workdir(self):
         raise NotImplementedError()
+
+    def get_input(self, input_name):
+        return self.plan['inputs'][input_name]
 
     def get_secret(self):
         raise NotImplementedError()

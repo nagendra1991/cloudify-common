@@ -153,7 +153,7 @@ class NodesClient(object):
             node_id=None,
             sort=None,
             is_descending=False,
-            evaluate_functions=False,
+            evaluate_functions=True,
             **kwargs
     ):
         params = {'_evaluate_functions': evaluate_functions}
