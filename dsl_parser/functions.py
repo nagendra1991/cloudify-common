@@ -848,7 +848,8 @@ def evaluate_outputs(outputs_def,
                      get_node_instance_method,
                      get_node_method,
                      get_secret_method,
-                     get_capability_method):
+                     get_capability_method,
+                     get_input_method):
     """Evaluates an outputs definition containing intrinsic functions.
 
     :param outputs_def: Outputs definition.
@@ -867,7 +868,8 @@ def evaluate_outputs(outputs_def,
         get_node_instance_method=get_node_instance_method,
         get_node_method=get_node_method,
         get_secret_method=get_secret_method,
-        get_capability_method=get_capability_method)
+        get_capability_method=get_capability_method,
+        get_input_method=get_input_method)
 
 
 def _handler(evaluator, **evaluator_kwargs):
