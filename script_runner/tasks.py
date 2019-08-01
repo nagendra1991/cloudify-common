@@ -23,13 +23,14 @@ import shutil
 import numbers
 import tempfile
 import subprocess
-import threading
 from contextlib import contextmanager
 
 import requests
 
 from cloudify import ctx as operation_ctx
-from cloudify.utils import create_temp_folder, get_exec_tempdir
+from cloudify.utils import (create_temp_folder,
+                            get_exec_tempdir,
+                            OutputConsumer)
 from cloudify.workflows import ctx as workflows_ctx
 from cloudify.decorators import operation, workflow
 from cloudify.exceptions import NonRecoverableError
@@ -409,23 +410,3 @@ class ProcessException(Exception):
             command, exit_code)
 
         super(ProcessException, self).__init__(message)
-
-
-class OutputConsumer(object):
-
-    def __init__(self, out, logger, prefix):
-        self.out = out
-        self.logger = logger
-        self.prefix = prefix
-        self.consumer = threading.Thread(target=self.consume_output)
-        self.consumer.daemon = True
-        self.consumer.start()
-
-    def consume_output(self):
-        for line in self.out:
-            line = line.decode('utf-8', 'replace')
-            self.logger.info("%s%s", self.prefix, line.rstrip('\n'))
-        self.out.close()
-
-    def join(self):
-        self.consumer.join()
