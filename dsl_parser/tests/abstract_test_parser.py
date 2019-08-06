@@ -1,5 +1,4 @@
-########
-# Copyright (c) 2013 GigaSpaces Technologies Ltd. All rights reserved
+# Copyright (c) 2017-2019 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -9,9 +8,9 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-#    * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#    * See the License for the specific language governing permissions and
-#    * limitations under the License.
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 
 import tempfile
@@ -297,10 +296,12 @@ class _MockRuntimeEvaluationStorage(object):
         else:
             raise KeyError('Node not found: {0}'.format(node_name))
 
-    def get_secret(self, secret_id):
+    @staticmethod
+    def get_secret(secret_id):
         return Mock(value=secret_id + '_value')
 
-    def get_capability(self, capability_path):
+    @staticmethod
+    def get_capability(capability_path):
         mock_deployments = {
             'dep_1': {
                 'capabilities': {
@@ -319,3 +320,7 @@ class _MockRuntimeEvaluationStorage(object):
         dep_id, cap_id = capability_path[0], capability_path[1]
 
         return mock_deployments[dep_id]['capabilities'][cap_id]
+
+    @staticmethod
+    def set_inter_deployment_dependency(*_, **__):
+        pass
