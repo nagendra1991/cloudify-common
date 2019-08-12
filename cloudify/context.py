@@ -694,8 +694,7 @@ class CloudifyContext(CommonContext):
 
     @property
     def workflow_id(self):
-        """
-        The workflow id the plugin invocation was requested from.
+        """The workflow id the plugin invocation was requested from.
         For example:
 
          ``install``, ``uninstall`` etc...
