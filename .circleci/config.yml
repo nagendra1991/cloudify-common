@@ -81,6 +81,22 @@ defaults:
                     aws s3 sync $DOCS_PATH s3://$DOCS_PATH_IN_S3 --delete --acl public-read
 
 jobs:
+  check_futurize:
+    docker:
+      - image: circleci/python
+    steps:
+      - checkout
+      - run: pip install caniusepython3 future --user
+      - run: ~/project/.circleci/check_futurize.sh
+
+  flake8_py3:
+    docker:
+      - image: circleci/python
+    steps:
+      - checkout
+      - run: pip install flake8 --user
+      - run: flake8 .
+
   flake8:
     <<: *test_defaults
     environment:
@@ -144,23 +160,25 @@ workflows:
   build_and_test:
     jobs:
       - flake8
-      - test_py27_dsl_parser
-      - test_py27_script_plugin
-      - test_py27_plugins_common
-      - test_py26_dsl_parser
-      - test_py26_script_plugin
-      - test_py26_plugins_common
-      - docs_plugins_common
-      - docs_rest_client
-      - deploy_docs_plugins_common:
-          requires:
-              - docs_plugins_common
-          filters:
-            branches:
-              only: master
-      - deploy_docs_rest_client:
-          requires:
-              - docs_rest_client
-          filters:
-            branches:
-              only: master
+      - check_futurize
+      - flake8_py3
+      # - test_py27_dsl_parser
+      # - test_py27_script_plugin
+      # - test_py27_plugins_common
+      # - test_py26_dsl_parser
+      # - test_py26_script_plugin
+      # - test_py26_plugins_common
+      # - docs_plugins_common
+      # - docs_rest_client
+      # - deploy_docs_plugins_common:
+      #     requires:
+      #         - docs_plugins_common
+      #     filters:
+      #       branches:
+      #         only: master
+      # - deploy_docs_rest_client:
+      #     requires:
+      #         - docs_rest_client
+      #     filters:
+      #       branches:
+      #         only: master
