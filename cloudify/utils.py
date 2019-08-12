@@ -659,6 +659,10 @@ def generate_user_password(password_length=32):
         system_random.choice(allowed_characters)
         for _ in range(password_length)
     )
+    password += ''.join(
+        system_random.choice(string.digits)
+        for _ in xrange(5)
+    )
     return password
 
 
