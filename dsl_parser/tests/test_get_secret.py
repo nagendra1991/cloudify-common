@@ -14,7 +14,7 @@
 #    * limitations under the License.
 
 from dsl_parser import functions
-from mock import MagicMock
+from mock import Mock
 from dsl_parser import exceptions
 from dsl_parser.tasks import prepare_deployment_plan
 from dsl_parser.tests.abstract_test_parser import AbstractTestParser
@@ -144,7 +144,7 @@ node_templates:
                                 a: { get_secret: target_op_secret_id }
 """
         parsed = prepare_deployment_plan(self.parse(yaml),
-                                         self._get_secret_mock)
+                                         self.get_secret)
         webserver_node = None
         for node in parsed.node_templates:
             if node['id'] == 'webserver':
@@ -163,7 +163,7 @@ node_templates:
         assertion(webserver_node['relationships'][0]['target_operations'])
 
     def test_validate_secrets_all_valid(self):
-        get_secret_mock = MagicMock(return_value='secret_value')
+        get_secret_mock = Mock(return_value='secret_value')
         parsed = prepare_deployment_plan(self.parse_1_3(self.secrets_yaml),
                                          get_secret_mock)
         self.assertTrue(get_secret_mock.called)
@@ -176,7 +176,7 @@ node_templates:
                            r"'source_op_secret_id'\] " \
                            r"don't exist in this tenant"
 
-        get_secret_not_found = MagicMock(side_effect=NotFoundException)
+        get_secret_not_found = Mock(side_effect=NotFoundException)
         self.assertRaisesRegexp(exceptions.UnknownSecretError,
                                 expected_message,
                                 prepare_deployment_plan,
@@ -184,7 +184,7 @@ node_templates:
                                 get_secret_not_found)
 
     def test_validate_secrets_unexpected_exception(self):
-        get_secret_exception = MagicMock(side_effect=TypeError)
+        get_secret_exception = Mock(side_effect=TypeError)
         self.assertRaisesRegexp(TypeError,
                                 '',
                                 prepare_deployment_plan,
@@ -196,7 +196,7 @@ node_templates:
                            r"'source_op_secret_id'\] don't exist in " \
                            r"this tenant"
 
-        get_secret_not_found = MagicMock()
+        get_secret_not_found = Mock()
         get_secret_not_found.side_effect = [None, None, NotFoundException,
                                             None, None, None,
                                             NotFoundException]
@@ -243,7 +243,7 @@ node_templates:
                             inputs:
                                 a: 1
 """
-        get_secret_mock = MagicMock(return_value='secret_value')
+        get_secret_mock = Mock(return_value='secret_value')
         parsed = prepare_deployment_plan(self.parse_1_3(no_secrets_yaml),
                                          get_secret_mock)
         self.assertFalse(get_secret_mock.called)
@@ -255,7 +255,6 @@ class NotFoundException(Exception):
 
 
 class TestEvaluateFunctions(AbstractTestParser):
-
     def test_evaluate_functions(self):
 
         payload = {
@@ -271,13 +270,8 @@ class TestEvaluateFunctions(AbstractTestParser):
             ]}
         }
 
-        functions.evaluate_functions(payload,
-                                     {},
-                                     None,
-                                     None,
-                                     None,
-                                     self._get_secret_mock,
-                                     None)
+        functions.evaluate_functions(
+            payload, {}, Mock(get_secret=self.get_secret))
 
         self.assertEqual(payload['a'], 'id_a_value')
         self.assertEqual(payload['b'], 'id_b_value')
@@ -299,18 +293,11 @@ node_templates:
             property: { get_secret: secret }
 """
         parsed = prepare_deployment_plan(self.parse_1_3(yaml),
-                                         self._get_secret_mock)
+                                         self.get_secret)
         node = self.get_node_by_name(parsed, 'node')
         self.assertEqual({'get_secret': 'secret'},
                          node['properties']['property'])
 
         functions.evaluate_functions(
-            parsed,
-            {},
-            None,
-            None,
-            None,
-            self._get_secret_mock,
-            None
-        )
+            parsed, {}, Mock(get_secret=self.get_secret))
         self.assertEqual(node['properties']['property'], 'secret_value')

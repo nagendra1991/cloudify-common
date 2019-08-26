@@ -85,6 +85,17 @@ class Deployment(dict):
         """
         return self.get('description')
 
+    @property
+    def visibility(self):
+        """
+        :return: The visibility of this deployment.
+        """
+        return self.get('visibility')
+
+    @property
+    def runtime_only_evaluation(self):
+        return self.get('runtime_only_evaluation')
+
 
 class Workflow(dict):
 
@@ -229,7 +240,8 @@ class DeploymentsClient(object):
                deployment_id,
                inputs=None,
                visibility=VisibilityState.TENANT,
-               skip_plugins_validation=False):
+               skip_plugins_validation=False,
+               runtime_only_evaluation=False):
         """
         Creates a new deployment for the provided blueprint id and
         deployment id.
@@ -240,10 +252,12 @@ class DeploymentsClient(object):
         :param visibility: The visibility of the deployment, can be 'private'
                            or 'tenant'.
         :param skip_plugins_validation: Determines whether to validate if the
-                                required deployment plugins exist on the
-                                manager. If validation is skipped,
-                                plugins containing source URL will
-                                be installed from source.
+            required deployment plugins exist on the manager. If validation
+            is skipped, plugins containing source URL will be installed
+            from source.
+        :param runtime_only_evaluation: If set, all functions will only be
+            evaluated at runtime, and no functions will be evaluated at parse
+            time.
         :return: The created deployment.
         """
         assert blueprint_id
@@ -252,6 +266,7 @@ class DeploymentsClient(object):
         if inputs:
             data['inputs'] = inputs
         data['skip_plugins_validation'] = skip_plugins_validation
+        data['runtime_only_evaluation'] = runtime_only_evaluation
         uri = '/deployments/{0}'.format(deployment_id)
         response = self.api.put(uri, data, expected_status_code=201)
         return Deployment(response)

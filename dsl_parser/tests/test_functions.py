@@ -15,14 +15,13 @@
 
 from testtools import ExpectedException
 
-from dsl_parser import exceptions
+from dsl_parser import exceptions, functions
 from dsl_parser.tasks import prepare_deployment_plan
 from dsl_parser.tests.abstract_test_parser import timeout
 from dsl_parser.tests.abstract_test_parser import AbstractTestParser
 
 
 class TestGetProperty(AbstractTestParser):
-
     def test_node_template_properties(self):
         yaml = """
 node_types:
@@ -202,7 +201,7 @@ node_templates:
         try:
             self.parse(yaml)
             self.fail()
-        except KeyError, e:
+        except KeyError as e:
             self.assertIn('Node template property', str(e))
             self.assertIn("doesn't exist", str(e))
             self.assertIn('vm.properties.notfound', str(e))
@@ -718,6 +717,55 @@ node_templates:
 """
         plan = prepare_deployment_plan(self.parse(yaml))
         self.assertEqual('secret', plan['nodes'][0]['properties']['b'])
+
+    def test_get_property_runtime(self):
+        yaml = """
+node_types:
+    vm_type:
+        properties:
+            a: { type: string }
+            c: { type: string }
+node_templates:
+    vm1:
+        type: vm_type
+        properties:
+            a: {get_property: [SELF, c]}
+            c: secret
+"""
+        plan = prepare_deployment_plan(
+            self.parse(yaml), runtime_only_evaluation=True)
+        self.assertEqual(plan['nodes'][0]['properties']['a'],
+                         {'get_property': ['SELF', 'c']})
+        node = functions.evaluate_node_functions(plan['nodes'][0], None)
+        self.assertEqual(node['properties']['a'], 'secret')
+
+    def test_get_property_another_node_runtime(self):
+        yaml = """
+node_types:
+    vm_type:
+        properties:
+            a: { type: string }
+            c: { type: string }
+node_templates:
+    vm1:
+        type: vm_type
+        properties:
+            a: {get_property: [vm2, c]}
+            c: secret1
+    vm2:
+        type: vm_type
+        properties:
+            a: xxx
+            c: secret2
+"""
+        plan = prepare_deployment_plan(
+            self.parse(yaml), runtime_only_evaluation=True)
+        plan_node = next(n for n in plan['nodes'] if n['name'] == 'vm1')
+        self.assertEqual(plan_node['properties']['a'],
+                         {'get_property': ['vm2', 'c']})
+        node = functions.evaluate_node_functions(
+            plan_node, self._mock_evaluation_storage(nodes=plan['nodes']))
+        self.assertEqual(node['properties']['a'], 'secret2')
 
 
 class TestGetAttribute(AbstractTestParser):
@@ -1251,134 +1299,6 @@ node_templates:
         some_node = self.get_node_by_name(parsed, 'some_node')
         self.assertEqual(['42'], some_node['properties']['concat_prop'])
 
-    def test_get_input_doesnt_accept_runtime_func_as_args(self):
-        yaml = """
-node_types:
-    some_type:
-        properties:
-            prop: {}
-            dummy_prop: {}
-node_templates:
-    some_node:
-        type: some_type
-        properties:
-            dummy_prop: dummy_value
-            prop:
-                get_input:
-                    - get_attribute:
-                            - some_node
-                            - dummy_prop
-    """
-        with self.assertRaisesRegexp(
-                exceptions.FunctionValidationError,
-                'Runtime function .+ cannot be nested within a non-runtime '
-                'function \\(found in .+\\)'):
-            prepare_deployment_plan(self.parse(yaml))
-
-        yaml = """
-node_types:
-    some_type:
-        properties:
-            prop: {}
-            dummy_prop: {}
-node_templates:
-    some_node:
-        type: some_type
-        properties:
-            dummy_prop: dummy_value
-            prop:
-                get_input:
-                    concat:
-                        - get_attribute:
-                                - some_node
-                                - dummy_prop
-    """
-        with self.assertRaisesRegexp(
-                exceptions.FunctionValidationError,
-                'Runtime function .+ cannot be nested within a non-runtime '
-                'function \\(found in .+\\)'):
-            prepare_deployment_plan(self.parse_1_1(yaml))
-
-        yaml = """
-inputs:
-    dummy_input:
-        default: some_node
-node_types:
-    some_type:
-        properties:
-            prop: {}
-            dummy_prop: {}
-node_templates:
-    some_node:
-        type: some_type
-        properties:
-            dummy_prop: dummy_value
-            prop:
-                get_attribute:
-                    - get_input: dummy_input
-                    - concat:
-                        - get_attribute: [ some_node, dummy_prop ]
-                    - get_input:
-                        concat:
-                            - get_attribute: [ some_node, dummy_prop ]
-                            - get_input: dummy_input
-    """
-        with self.assertRaisesRegexp(
-                exceptions.FunctionValidationError,
-                'Runtime function .+ cannot be nested within a non-runtime '
-                'function \\(found in .+\\)'):
-            prepare_deployment_plan(self.parse_1_1(yaml))
-
-    def test_get_property_doesnt_accept_runtime_func_as_args(self):
-        yaml = """
-node_types:
-    some_type:
-        properties:
-            prop: {}
-            dummy_prop: {}
-node_templates:
-    some_node:
-        type: some_type
-        properties:
-            dummy_prop: dummy_value
-            prop:
-                get_property:
-                    - get_attribute:
-                            - some_node
-                            - dummy_prop
-                    - shouldn't matter
-    """
-        with self.assertRaisesRegexp(
-                exceptions.FunctionValidationError,
-                'Runtime function .+ cannot be nested within a non-runtime '
-                'function \\(found in .+\\)'):
-            prepare_deployment_plan(self.parse(yaml))
-
-        yaml = """
-node_types:
-    some_type:
-        properties:
-            prop: {}
-            dummy_prop: {}
-node_templates:
-    some_node:
-        type: some_type
-        properties:
-            dummy_prop: dummy_value
-            prop:
-                get_property:
-                    - concat:
-                        - get_attribute:
-                                - some_node
-                                - dummy_prop
-                    - shouldn't matter
-    """
-        with self.assertRaisesRegexp(
-                exceptions.FunctionValidationError,
-                'Runtime function .+ cannot be nested within a non-runtime '
-                'function \\(found in .+\\)'):
-            prepare_deployment_plan(self.parse_1_1(yaml))
-
     def test_circular_with_dict_argument(self):
         yaml = """
 node_types:
@@ -1470,3 +1390,126 @@ node_templates:
                 "The recursion limit \\([0-9]+\\) has been reached while "
                 "evaluating the deployment\\..+get_property\\[0\\].+"):
             prepare_deployment_plan(self.parse(yaml))
+
+    def test_get_input_doesnt_accept_runtime_func_as_args(self):
+        yaml = """
+node_types:
+    some_type:
+        properties:
+            prop: {}
+            dummy_prop: {}
+node_templates:
+    some_node:
+        type: some_type
+        properties:
+            dummy_prop: dummy_value
+            prop:
+                get_input:
+                    - get_attribute:
+                            - some_node
+                            - dummy_prop
+    """
+        plan = self.parse(yaml)
+        with self.assertRaisesRegexp(
+                exceptions.FunctionEvaluationError, 'unresolved argument'):
+            prepare_deployment_plan(plan)
+
+        yaml = """
+node_types:
+    some_type:
+        properties:
+            prop: {}
+            dummy_prop: {}
+node_templates:
+    some_node:
+        type: some_type
+        properties:
+            dummy_prop: dummy_value
+            prop:
+                get_input:
+                    concat:
+                        - get_attribute:
+                                - some_node
+                                - dummy_prop
+    """
+        plan = self.parse_1_1(yaml)
+        with self.assertRaisesRegexp(
+                exceptions.FunctionEvaluationError, 'unresolved argument'):
+            prepare_deployment_plan(plan)
+
+        yaml = """
+inputs:
+    dummy_input:
+        default: some_node
+node_types:
+    some_type:
+        properties:
+            prop: {}
+            dummy_prop: {}
+node_templates:
+    some_node:
+        type: some_type
+        properties:
+            dummy_prop: dummy_value
+            prop:
+                get_attribute:
+                    - get_input: dummy_input
+                    - concat:
+                        - get_attribute: [ some_node, dummy_prop ]
+                    - get_input:
+                        concat:
+                            - get_attribute: [ some_node, dummy_prop ]
+                            - get_input: dummy_input
+    """
+        plan = self.parse_1_1(yaml)
+        with self.assertRaisesRegexp(
+                exceptions.FunctionEvaluationError, 'unresolved argument'):
+            prepare_deployment_plan(plan)
+
+    def test_get_property_doesnt_accept_runtime_func_as_args(self):
+        yaml = """
+node_types:
+    some_type:
+        properties:
+            prop: {}
+            dummy_prop: {}
+node_templates:
+    some_node:
+        type: some_type
+        properties:
+            dummy_prop: dummy_value
+            prop:
+                get_property:
+                    - get_attribute:
+                            - some_node
+                            - dummy_prop
+                    - shouldn't matter
+    """
+        plan = self.parse(yaml)
+        with self.assertRaisesRegexp(
+                exceptions.FunctionEvaluationError, 'unresolved argument'):
+            prepare_deployment_plan(plan)
+
+        yaml = """
+node_types:
+    some_type:
+        properties:
+            prop: {}
+            dummy_prop: {}
+node_templates:
+    some_node:
+        type: some_type
+        properties:
+            dummy_prop: dummy_value
+            prop:
+                get_property:
+                    - concat:
+                        - get_attribute:
+                                - some_node
+                                - dummy_prop
+                    - shouldn't matter
+    """
+        plan = self.parse_1_1(yaml)
+        with self.assertRaisesRegexp(
+                exceptions.FunctionEvaluationError, 'unresolved argument'):
+            prepare_deployment_plan(plan)

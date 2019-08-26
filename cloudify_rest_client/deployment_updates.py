@@ -186,7 +186,9 @@ class DeploymentUpdatesClient(object):
                force=False,
                ignore_failure=False,
                install_first=True,
-               skip_reinstall=True):
+               skip_reinstall=True,
+               runtime_only_evaluation=None,
+               update_executions=None):
 
         # TODO better handle testing for a supported archive. in other commands
         # it is done in the cli part (`commands.<command_name>)
@@ -208,7 +210,7 @@ class DeploymentUpdatesClient(object):
             params['skip_install'] = skip_install
         if skip_uninstall:
             params['skip_uninstall'] = skip_uninstall
-        if skip_reinstall:
+        if skip_reinstall is not None:
             params['skip_reinstall'] = skip_reinstall
         if force:
             params['force'] = force
@@ -216,7 +218,10 @@ class DeploymentUpdatesClient(object):
             params['ignore_failure'] = ignore_failure
         if install_first:
             params['install_first'] = install_first
-
+        if runtime_only_evaluation is not None:
+            params['runtime_only_evaluation'] = runtime_only_evaluation
+        if update_executions is not None:
+            params['update_executions'] = update_executions
         data_and_headers = {}
 
         if data_form:
@@ -240,7 +245,10 @@ class DeploymentUpdatesClient(object):
                                        force=False,
                                        ignore_failure=False,
                                        install_first=False,
-                                       reinstall_list=None):
+                                       reinstall_list=None,
+                                       runtime_only_evaluation=None,
+                                       update_executions=None):
+
         data = {
             'workflow_id': workflow_id,
             'skip_install': skip_install,
@@ -249,12 +257,15 @@ class DeploymentUpdatesClient(object):
             'force': force,
             'ignore_failure': ignore_failure,
             'install_first': install_first,
-            'blueprint_id': blueprint_id
+            'blueprint_id': blueprint_id,
+            'update_executions': update_executions
         }
         if inputs:
             data['inputs'] = inputs
         if reinstall_list:
             data['reinstall_list'] = reinstall_list
+        if runtime_only_evaluation is not None:
+            data['runtime_only_evaluation'] = runtime_only_evaluation
         uri = '/deployment-updates/{0}/update/initiate'.format(deployment_id)
         response = self.api.put(uri, data=data)
         return DeploymentUpdate(response)

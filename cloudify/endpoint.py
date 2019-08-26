@@ -132,7 +132,9 @@ class Endpoint(object):
         elif self.ctx.type == constants.RELATIONSHIP_INSTANCE:
             evaluation_context.update({
                 'source': self.ctx.source.instance.id,
-                'target': self.ctx.target.instance.id
+                'target': self.ctx.target.instance.id,
+                'source_node': self.ctx.source.node.id,
+                'target_node': self.ctx.target.node.id
             })
         return evaluate_functions_method(deployment_id=self.ctx.deployment.id,
                                          context=evaluation_context,
@@ -143,10 +145,6 @@ class Endpoint(object):
 
 
 class ManagerEndpoint(Endpoint):
-
-    def __init__(self, ctx):
-        super(ManagerEndpoint, self).__init__(ctx)
-
     def get_node(self, node_id):
         client = manager.get_rest_client()
         return client.nodes.get(self.ctx.deployment.id, node_id,
