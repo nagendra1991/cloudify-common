@@ -45,6 +45,63 @@ RUNTIME_FUNC = 2
 TEMPLATE_FUNCTIONS = TEMPLATE_FUNCTIONS
 
 
+class RecursionLimit(object):
+    def __init__(self, limit, args_to_str_func=None):
+        """Initializes the recursion limit context manager. This context
+        manager limits the recursion only for this specific function, unlike
+        the sys.setrecursionlimit(limit) function, which sets the call stack
+        depth.
+
+        :param limit: recursion limit (inclusive).
+        :param args_to_str_func: function that returns a string containing
+            information about the last arguments used. Its signature should
+            be the same as the signature of the limited function.
+        """
+        self.limit = limit
+        self.args_to_str_func = args_to_str_func
+        self.last_args = None
+        self.last_kwargs = None
+        self.calls_cnt = 0
+
+    def set_last_args(self, last_args, last_kwargs):
+        """Sets the last arguments that were used to call the function wrapped
+        in this context manager.
+
+        :param last_args: last arguments to set.
+        :param last_kwargs: last keyword arguments to set.
+        """
+        self.last_args = last_args
+        self.last_kwargs = last_kwargs
+
+    def __enter__(self):
+        self.calls_cnt += 1
+        if self.calls_cnt > self.limit:
+            msg = "The recursion limit ({0}) has been reached while " \
+                  "evaluating the deployment. ".format(self.limit)
+            if self.args_to_str_func and (self.last_args or self.last_kwargs):
+                msg += self.args_to_str_func(
+                    *self.last_args, **self.last_kwargs)
+            raise exceptions.EvaluationRecursionLimitReached(msg)
+
+    def __exit__(self, tp, value, tb):
+        self.calls_cnt -= 1
+
+
+def limit_recursion(limit, args_to_str_func=None):
+    _recursion_limit_ctx = RecursionLimit(limit, args_to_str_func)
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            _recursion_limit_ctx.set_last_args(args, kwargs)
+            with _recursion_limit_ctx:
+                return f(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def register(fn=None, name=None, func_eval_type=HYBRID_FUNC):
     if fn is None:
         def partial(_fn):
@@ -188,11 +245,7 @@ class Function(ABC):
         pass
 
     @abc.abstractmethod
-    def evaluate(self, plan):
-        pass
-
-    @abc.abstractmethod
-    def evaluate_runtime(self, storage):
+    def evaluate(self, handler):
         pass
 
 
@@ -229,14 +282,11 @@ class GetInput(Function):
                 "get_input function references an "
                 "unknown input '{0}'.".format(input_value))
 
-    def evaluate(self, plan):
+    def evaluate(self, handler):
         if isinstance(self.input_value, list):
-            return self._get_input_attribute(plan.inputs[self.input_value[0]])
-        if self.input_value not in plan.inputs:
-            raise exceptions.UnknownInputError(
-                "get_input function references an "
-                "unknown input '{0}'.".format(self.input_value))
-        return plan.inputs[self.input_value]
+            return self._get_input_attribute(
+                handler.get_input(self.input_value[0]))
+        return handler.get_input(self.input_value)
 
     def _get_input_attribute(self, root):
         value = root
@@ -275,10 +325,6 @@ class GetInput(Function):
                             self.input_value[:index + 1]), attr))
         return value
 
-    def evaluate_runtime(self, storage):
-        raise RuntimeError('runtime evaluation for {0} is not supported'
-                           .format(self.name))
-
 
 @register(name='get_property', func_eval_type=STATIC_FUNC)
 class GetProperty(Function):
@@ -303,9 +349,10 @@ class GetProperty(Function):
         args = [self.node_name] + self.property_path
         if any(is_function(x) for x in args):
             return
-        self.evaluate(plan)
+        handler = _PlanEvaluationHandler(plan)
+        self.evaluate(handler)
 
-    def get_node_template(self, plan):
+    def get_node_template(self, handler):
         if self.node_name == SELF:
             if self.scope != scan.NODE_TEMPLATE_SCOPE:
                 raise ValueError(
@@ -321,17 +368,9 @@ class GetProperty(Function):
                 node = self.context['node_template']
             else:
                 target_node = self.context['relationship']['target_id']
-                node = [
-                    x for x in plan.node_templates
-                    if x['name'] == target_node][0]
+                node = handler.get_node(target_node)
         else:
-            found = [
-                x for x in plan.node_templates if self.node_name == x['id']]
-            if len(found) == 0:
-                raise KeyError(
-                    "{0} function node reference '{1}' does not exist.".format(
-                        self.name, self.node_name))
-            node = found[0]
+            node = handler.get_node(self.node_name)
         self._get_property_value(node)
         return node
 
@@ -341,12 +380,8 @@ class GetProperty(Function):
                                    self.property_path,
                                    self.path)
 
-    def evaluate(self, plan):
-        return self._get_property_value(self.get_node_template(plan))
-
-    def evaluate_runtime(self, storage):
-        raise RuntimeError('runtime evaluation for {0} is not supported'
-                           .format(self.name))
+    def evaluate(self, handler):
+        return self._get_property_value(self.get_node_template(handler))
 
 
 @register(name='get_attribute', func_eval_type=RUNTIME_FUNC)
@@ -399,27 +434,22 @@ class GetAttribute(Function):
                     "{0} function node reference '{1}' does not exist.".format(
                         self.name, self.node_name))
 
-    def evaluate(self, plan):
-        if 'operation' in self.context:
-            self.context['operation']['has_intrinsic_functions'] = True
-        return self.raw
-
-    def evaluate_runtime(self, storage):
+    def evaluate(self, handler):
         if self.node_name == SELF:
             node_instance_id = self.context.get('self')
             self._validate_ref(node_instance_id, SELF)
-            node_instance = storage.get_node_instance(node_instance_id)
+            node_instance = handler.get_node_instance(node_instance_id)
         elif self.node_name == SOURCE:
             node_instance_id = self.context.get('source')
             self._validate_ref(node_instance_id, SOURCE)
-            node_instance = storage.get_node_instance(node_instance_id)
+            node_instance = handler.get_node_instance(node_instance_id)
         elif self.node_name == TARGET:
             node_instance_id = self.context.get('target')
             self._validate_ref(node_instance_id, TARGET)
-            node_instance = storage.get_node_instance(node_instance_id)
+            node_instance = handler.get_node_instance(node_instance_id)
         else:
             try:
-                node_instance = self._resolve_node_instance_by_name(storage)
+                node_instance = self._resolve_node_instance_by_name(handler)
                 node_instance_id = node_instance.id
             except exceptions.FunctionEvaluationError as e:
                 # Only in outputs scope we allow to continue when an error
@@ -442,7 +472,7 @@ class GetAttribute(Function):
                 value = node_instance_id
         # still nothing? look in node properties
         if value is None:
-            node = storage.get_node(node_instance.node_id)
+            node = handler.get_node(node_instance.node_id)
             value = _get_property_value(node.id,
                                         node.properties,
                                         self.attribute_path,
@@ -450,9 +480,9 @@ class GetAttribute(Function):
                                         raise_if_not_found=False)
         return value
 
-    def _resolve_node_instance_by_name(self, storage):
+    def _resolve_node_instance_by_name(self, handler):
         node_id = self.node_name
-        node_instances = storage.get_node_instances(node_id)
+        node_instances = handler.get_node_instances(node_id)
 
         if len(node_instances) == 0:
             raise exceptions.FunctionEvaluationError(
@@ -464,13 +494,13 @@ class GetAttribute(Function):
             return node_instances[0]
 
         node_instance = self._try_resolve_node_instance_by_relationship(
-            storage=storage,
+            handler=handler,
             node_instances=node_instances)
         if node_instance:
             return node_instance
 
         node_instance = self._try_resolve_node_instance_by_scaling_group(
-            storage=storage,
+            handler=handler,
             node_instances=node_instances)
         if node_instance:
             return node_instance
@@ -482,13 +512,11 @@ class GetAttribute(Function):
             .format(self.node_name))
 
     def _try_resolve_node_instance_by_relationship(
-            self,
-            storage,
-            node_instances):
+            self, handler, node_instances):
         self_instance_id = self.context.get('self')
         if not self_instance_id:
             return None
-        self_instance = storage.get_node_instance(self_instance_id)
+        self_instance = handler.get_node_instance(self_instance_id)
         self_instance_relationships = self_instance.relationships or []
         node_instances_target_ids = set()
         for relationship in self_instance_relationships:
@@ -504,12 +532,10 @@ class GetAttribute(Function):
             raise RuntimeError('Illegal state')
 
     def _try_resolve_node_instance_by_scaling_group(
-            self,
-            storage,
-            node_instances):
+            self, handler, node_instances):
 
         def _parent_instance(_instance):
-            _node = storage.get_node(_instance.node_id)
+            _node = handler.get_node(_instance.node_id)
             for relationship in _node.relationships or []:
                 if (constants.CONTAINED_IN_REL_TYPE in
                         relationship['type_hierarchy']):
@@ -517,7 +543,7 @@ class GetAttribute(Function):
                     target_id = [
                         r['target_id'] for r in _instance.relationships
                         if r['target_name'] == target_name][0]
-                    return storage.get_node_instance(target_id)
+                    return handler.get_node_instance(target_id)
             return None
 
         def _containing_groups(_instance):
@@ -549,7 +575,7 @@ class GetAttribute(Function):
             return _group_instance(parent_instance, group_name)
 
         def _resolve_node_instance(context_instance_id):
-            context_instance = storage.get_node_instance(context_instance_id)
+            context_instance = handler.get_node_instance(context_instance_id)
             minimal_shared_group = _minimal_shared_group(context_instance,
                                                          node_instances[0])
             if not minimal_shared_group:
@@ -609,13 +635,8 @@ class GetSecret(Function):
     def validate(self, plan):
         pass
 
-    def evaluate(self, plan):
-        if 'operation' in self.context:
-            self.context['operation']['has_intrinsic_functions'] = True
-        return self.raw
-
-    def evaluate_runtime(self, storage):
-        return storage.get_secret(self.secret_id)
+    def evaluate(self, handler):
+        return handler.get_secret(self.secret_id)
 
 
 @register(name='get_capability', func_eval_type=RUNTIME_FUNC)
@@ -652,13 +673,8 @@ class GetCapability(Function):
     def validate(self, plan):
         pass
 
-    def evaluate(self, plan):
-        if 'operation' in self.context:
-            self.context['operation']['has_intrinsic_functions'] = True
-        return self.raw
-
-    def evaluate_runtime(self, storage):
-        return storage.get_capability(self.capability_path)
+    def evaluate(self, handler):
+        return handler.get_capability(self.capability_path)
 
 
 @register(name='concat', func_eval_type=HYBRID_FUNC)
@@ -683,14 +699,11 @@ class Concat(Function):
                 'greater, but found: {1} in {2}.'
                 .format(self.name, plan.version, self.path))
 
-    def evaluate(self, plan):
+    def evaluate(self, handler):
         for joined_value in self.joined:
             if parse(joined_value) != joined_value:
                 return self.raw
         return self.join()
-
-    def evaluate_runtime(self, storage):
-        return self.evaluate(plan=None)
 
     def join(self):
         str_join = [str(elem) for elem in self.joined]
@@ -772,28 +785,15 @@ def parse(raw_function, scope=None, context=None, path=None):
     return raw_function
 
 
-def evaluate_functions(payload, context,
-                       get_node_instances_method,
-                       get_node_instance_method,
-                       get_node_method,
-                       get_secret_method,
-                       get_capability_method):
+def evaluate_functions(payload, context, storage):
     """Evaluate functions in payload.
 
     :param payload: The payload to evaluate.
     :param context: Context used during evaluation.
-    :param get_node_instances_method: A method for getting node instances.
-    :param get_node_instance_method: A method for getting a node instance.
-    :param get_node_method: A method for getting a node.
-    :param get_secret_method: A method for getting a secret.
-    :param get_capability_method: A method for getting a capability.
+    :param storage: Storage backend for runtime function evaluation
     :return: payload.
     """
-    handler = runtime_evaluation_handler(get_node_instances_method,
-                                         get_node_instance_method,
-                                         get_node_method,
-                                         get_secret_method,
-                                         get_capability_method)
+    handler = runtime_evaluation_handler(storage)
     scan.scan_properties(payload,
                          handler,
                          scope=None,
@@ -803,84 +803,52 @@ def evaluate_functions(payload, context,
     return payload
 
 
-def evaluate_capabilities(capabilities,
-                          get_node_instances_method,
-                          get_node_instance_method,
-                          get_node_method,
-                          get_secret_method,
-                          get_capability_method):
+def evaluate_capabilities(capabilities, storage):
     """Evaluates capabilities definition containing intrinsic functions.
 
     :param capabilities: The dict of capabilities to evaluate
-    :param get_node_instances_method: A method for getting node instances.
-    :param get_node_instance_method: A method for getting a node instance.
-    :param get_node_method: A method for getting a node.
-    :param get_secret_method: A method for getting a secret.
-    :param get_capability_method: A method for getting a capability.
+    :param storage: Storage backend for runtime function evaluation
     :return: Capabilities dict.
     """
     capabilities = dict((k, v['value']) for k, v in capabilities.items())
     return evaluate_functions(
         payload=capabilities,
         context={},
-        get_node_instances_method=get_node_instances_method,
-        get_node_instance_method=get_node_instance_method,
-        get_node_method=get_node_method,
-        get_secret_method=get_secret_method,
-        get_capability_method=get_capability_method)
+        storage=storage)
 
 
-def evaluate_outputs(outputs_def,
-                     get_node_instances_method,
-                     get_node_instance_method,
-                     get_node_method,
-                     get_secret_method,
-                     get_capability_method):
+def evaluate_outputs(outputs_def, storage):
     """Evaluates an outputs definition containing intrinsic functions.
 
     :param outputs_def: Outputs definition.
-    :param get_node_instances_method: A method for getting node instances.
-    :param get_node_instance_method: A method for getting a node instance.
-    :param get_node_method: A method for getting a node.
-    :param get_secret_method: A method for getting a secret.
-    :param get_capability_method: A method for getting a capability.
+    :param storage: Storage backend for runtime function evaluation
     :return: Outputs dict.
     """
     outputs = dict((k, v['value']) for k, v in outputs_def.items())
     return evaluate_functions(
         payload=outputs,
         context={'evaluate_outputs': True},
-        get_node_instances_method=get_node_instances_method,
-        get_node_instance_method=get_node_instance_method,
-        get_node_method=get_node_method,
-        get_secret_method=get_secret_method,
-        get_capability_method=get_capability_method)
+        storage=storage)
 
 
-def _handler(evaluator, **evaluator_kwargs):
-    def _args_to_str_func(args, kwargs):
-        """Used to display extra information when recursion limit is reached.
+def _args_to_str_func(handler, v, scope, context, path):
+    """Used to display extra information when recursion limit is reached.
+    This is the message-creating function used with an _EvaluationHandler,
+    so it takes the same arguments as that.
 
-        :param args: arguments that the function has been called with lastly.
-        :param kwargs: keyword arguments that the function has been called with
-            lastly.
-        :return: relevant string containing information about the arguments.
-        """
-        msg = "Limit was reached with the following path - {0}"
-        if args and len(args) == 4:
-            return msg.format(args[3])
-        if kwargs and 'path' in kwargs:
-            return msg.format(kwargs['path'])
-        return ""
+    """
+    return "Limit was reached with the following path - {0}".format(path)
 
+
+class _EvaluationHandler(object):
     @limit_recursion(50, args_to_str_func=_args_to_str_func)
-    def handler(v, scope, context, path):
+    def __call__(self, v, scope, context, path):
         evaluated_value = v
         scanned = False
         while True:
             scan.scan_properties(
                 evaluated_value,
-                handler,
+                self,
                 scope=scope,
                 context=context,
                 path=path,
@@ -892,30 +860,102 @@ def _handler(evaluator, **evaluator_kwargs):
             if not isinstance(func, Function):
                 break
             previous_evaluated_value = evaluated_value
-            evaluated_value = getattr(func, evaluator)(**evaluator_kwargs)
+            evaluated_value = self.evaluate_function(func)
             if scanned and previous_evaluated_value == evaluated_value:
                 break
             scanned = True
         return evaluated_value
-    return handler
+
+    def evaluate_function(self, func):
+        return func.evaluate(self)
+
+
+class _PlanEvaluationHandler(_EvaluationHandler):
+    def __init__(self, plan):
+        self._plan = plan
+
+    def evaluate_function(self, func):
+        if func.func_eval_type in (STATIC_FUNC, HYBRID_FUNC):
+            return super(_PlanEvaluationHandler, self).evaluate_function(func)
+        if 'operation' in func.context:
+            func.context['operation']['has_intrinsic_functions'] = True
+        return func.raw
+
+    def get_input(self, input_name):
+        try:
+            return self._plan.inputs[input_name]
+        except KeyError:
+            raise exceptions.UnknownInputError(
+                "get_input function references an "
+                "unknown input '{0}'.".format(input_name))
+
+    def get_node(self, node_name):
+        for n in self._plan.node_templates:
+            if n['name'] == node_name:
+                return n
+        else:
+            raise KeyError('Node {0} does not exist'.format(node_name))
+
+
+class _RuntimeEvaluationHandler(_EvaluationHandler):
+    def __init__(self, storage):
+        self._storage = storage
+        self._nodes_cache = {}
+        self._node_to_node_instances = {}
+        self._node_instances_cache = {}
+        self._secrets_cache = {}
+        self._capabilities_cache = {}
+
+    def evaluate_function(self, func):
+        if func.func_eval_type == STATIC_FUNC:
+            raise RuntimeError('runtime evaluation for {0} is not supported'
+                               .format(func.name))
+        return super(_RuntimeEvaluationHandler, self).evaluate_function(func)
+
+    def get_input(self, input_name):
+        return self._storage.get_input(input_name)
+
+    def get_node(self, node_id):
+        if node_id not in self._nodes_cache:
+            node = self._storage.get_node(node_id)
+            self._nodes_cache[node_id] = node
+        return self._nodes_cache[node_id]
+
+    def get_node_instances(self, node_id):
+        if node_id not in self._node_to_node_instances:
+            node_instances = self._storage.get_node_instances(node_id)
+            self._node_to_node_instances[node_id] = node_instances
+            for node_instance in node_instances:
+                self._node_instances_cache[node_instance.id] = node_instance
+        return self._node_to_node_instances[node_id]
+
+    def get_node_instance(self, node_instance_id):
+        if node_instance_id not in self._node_instances_cache:
+            node_instance = self._storage.get_node_instance(node_instance_id)
+            self._node_instances_cache[node_instance_id] = node_instance
+        return self._node_instances_cache[node_instance_id]
+
+    def get_secret(self, secret_key):
+        if secret_key not in self._secrets_cache:
+            secret = self._storage.get_secret(secret_key)
+            self._secrets_cache[secret_key] = secret.value
+        return self._secrets_cache[secret_key]
+
+    def get_capability(self, capability_path):
+        capability_id = _convert_attribute_list_to_python_syntax_string(
+            capability_path)
+        if capability_id not in self._capabilities_cache:
+            capability = self._storage.get_capability(capability_path)
+            self._capabilities_cache[capability_id] = capability
+        return self._capabilities_cache[capability_id]
 
 
 def plan_evaluation_handler(plan):
-    return _handler('evaluate', plan=plan)
+    return _PlanEvaluationHandler(plan)
 
 
-def runtime_evaluation_handler(get_node_instances_method,
-                               get_node_instance_method,
-                               get_node_method,
-                               get_secret_method,
-                               get_capability_method):
-    return _handler('evaluate_runtime',
-                    storage=RuntimeEvaluationStorage(
-                        get_node_instances_method=get_node_instances_method,
-                        get_node_instance_method=get_node_instance_method,
-                        get_node_method=get_node_method,
-                        get_secret_method=get_secret_method,
-                        get_capability_method=get_capability_method))
+def runtime_evaluation_handler(storage):
+    return _RuntimeEvaluationHandler(storage)
 
 
 def validate_functions(plan):
@@ -1006,59 +1046,3 @@ def get_nested_attribute_value_of_capability(root, path):
                     path[0],
                     attr))
     return {'value': value}
-
-
-class RecursionLimit(object):
-    def __init__(self, limit, args_to_str_func=None):
-        """Initializes the recursion limit context manager. This context
-        manager limits the recursion only for this specific function, unlike
-        the sys.setrecursionlimit(limit) function, which sets the call stack
-        depth.
-
-        :param limit: recursion limit (inclusive).
-        :param args_to_str_func: function that returns a string containing
-            information about the last arguments used. It's signature should
-            be func(args, kwargs).
-        """
-        self.limit = limit
-        self.args_to_str_func = args_to_str_func
-        self.last_args = None
-        self.last_kwargs = None
-        self.calls_cnt = 0
-
-    def set_last_args(self, last_args, last_kwargs):
-        """Sets the last arguments that were used to call the function wrapped
-        in this context manager.
-
-        :param last_args: last arguments to set.
-        :param last_kwargs: last keyword arguments to set.
-        """
-        self.last_args = last_args
-        self.last_kwargs = last_kwargs
-
-    def __enter__(self):
-        self.calls_cnt += 1
-        if self.calls_cnt > self.limit:
-            msg = "The recursion limit ({0}) has been reached while " \
-                  "evaluating the deployment. ".format(self.limit)
-            if self.args_to_str_func and (self.last_args or self.last_kwargs):
-                msg += self.args_to_str_func(self.last_args, self.last_kwargs)
-            raise exceptions.EvaluationRecursionLimitReached(msg)
-
-    def __exit__(self, tp, value, tb):
-        self.calls_cnt -= 1
-
-
-def limit_recursion(limit, args_to_str_func=None):
-    _recursion_limit_ctx = RecursionLimit(limit, args_to_str_func)
-
-    def decorator(f):
-        @wraps(f)
-        def wrapper(*args, **kwargs):
-            _recursion_limit_ctx.set_last_args(args, kwargs)
-            with _recursion_limit_ctx:
-                return f(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
