@@ -23,7 +23,6 @@ from dsl_parser.constants import (
     CONSTRAINTS as CONSTRAINT_CONST
 )
 
-
 _NOT_COMPARABLE_ERROR_MSG = "Value is not comparable, the Constraint " \
                             "argument type  is '{0}' but value type is '{1}'."
 _NO_LENGTH_ERROR_MSG = "Value's length could not be computed. Value " \

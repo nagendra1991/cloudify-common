@@ -681,7 +681,7 @@ class WorkflowHandler(TaskHandler):
             self._workflow_succeeded()
             return result
         except Exception as e:
-            error = StringIO()
+            error = StringIO.StringIO()
             traceback.print_exc(file=error)
             self._workflow_failed(e, error.getvalue())
             raise

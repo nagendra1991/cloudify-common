@@ -886,7 +886,6 @@ node_templates:
                 if 'vm.operations.test.op.inputs.a' not in message and \
                         'vm.operations.op.inputs.a' not in message:
                     self.fail('Operation name not in message')
-
         assert_with('SOURCE')
         assert_with('TARGET')
 

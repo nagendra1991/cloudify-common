@@ -1,3 +1,4 @@
+from __future__ import print_function
 # flake8: NOQA
 # -*- coding: utf-8 -*-
 #
