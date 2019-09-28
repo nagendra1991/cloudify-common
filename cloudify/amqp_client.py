@@ -31,6 +31,7 @@ import pika.exceptions
 from cloudify._compat import queue
 from cloudify import exceptions
 from cloudify import broker_config
+from cloudify._compat import queue
 from cloudify.constants import EVENTS_EXCHANGE_NAME, LOGS_EXCHANGE_NAME
 import collections
 

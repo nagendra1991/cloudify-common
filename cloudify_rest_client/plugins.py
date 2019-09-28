@@ -18,6 +18,7 @@ import contextlib
 
 from cloudify_rest_client._compat import urlparse
 from cloudify_rest_client import bytes_stream_utils
+from cloudify_rest_client._compat import urlparse
 from cloudify_rest_client.responses import ListResponse
 from cloudify_rest_client.constants import VisibilityState
 
