@@ -18,7 +18,7 @@
 import random
 import requests
 
-from cloudify._compat import urlquote
+from cloudify._compat import urlquote as quote
 
 
 RABBITMQ_MANAGEMENT_PORT = 15671
@@ -93,12 +93,37 @@ class RabbitMQClient(object):
         vhosts = self._do_request(requests.get, 'vhosts').json()
         return [vhost['name'] for vhost in vhosts]
 
-    def create_vhost(self, vhost):
-        vhost = urlquote(vhost, '')
+    def create_vhost(self, vhost, copy_policies=True):
+        vhost = quote(vhost, '')
         self._do_request(requests.put, 'vhosts/{0}'.format(vhost))
+        if copy_policies:
+            default_policies = self.get_policies('/')
+            for policy in default_policies:
+                name = policy.pop('name')
+                policy.pop('vhost')
+                self.set_policy(vhost, name, policy)
+
+    def set_policy(self, vhost, policy_name, policy):
+        vhost = quote(vhost, '')
+        policy_name = quote(policy_name, '')
+        self._do_request(
+            requests.put,
+            'policies/{vhost}/{policy_name}'.format(
+                vhost=vhost,
+                policy_name=policy_name,
+            ),
+            json=policy,
+        )
+
+    def get_policies(self, vhost):
+        vhost = quote(vhost, '')
+        return self._do_request(
+            requests.get,
+            'policies/{vhost}'.format(vhost=vhost)
+        ).json()
 
     def delete_vhost(self, vhost):
-        vhost = urlquote(vhost, '')
+        vhost = quote(vhost, '')
         self._do_request(requests.delete, 'vhosts/{0}'.format(vhost))
 
     def get_users(self):
@@ -113,7 +138,7 @@ class RabbitMQClient(object):
 
     def set_vhost_permissions(self, vhost, username, configure='', write='',
                               read=''):
-        vhost = urlquote(vhost, '')
+        vhost = quote(vhost, '')
         self._do_request(requests.put,
                          'permissions/{0}/{1}'.format(vhost, username),
                          json={
