@@ -469,16 +469,20 @@ class OperationHandler(TaskHandler):
     @contextmanager
     def _update_operation_state(self):
         ctx = self.ctx
+        store = True
         try:
             ctx.update_operation(tasks.TASK_STARTED)
         except CloudifyClientError as e:
-            if e.status_code != 404:
+            if e.status_code == 409:
+                # we can't set state to started, means that it has already
+                # been started before - we're running a resume! let's mark it
+                ctx.resume = True
+            elif e.status_code == 404:
+                # the operation was never stored, so we're running a workflow
+                # that doesn't store its operations (non-resumable workflow)
+                store = False
+            else:
                 raise
-            # if we can't update the operation, the operation isn't stored
-            # and we shouldn't update it afterwards either
-            store = False
-        else:
-            store = True
         try:
             yield
             error = False
