@@ -433,6 +433,7 @@ class OperationHandler(TaskHandler):
             # this will raise and bubble up
             self.get_func()
 
+    def _validate_operation_resumable(self):
         if self.ctx.resume and not getattr(self._func, 'resumable', False):
             raise exceptions.NonRecoverableError(
                 'Cannot resume - operation not resumable: {0}'
@@ -459,6 +460,7 @@ class OperationHandler(TaskHandler):
             # but has to be nested for python 2.6 compat
             with self._amqp_client():
                 with self._update_operation_state():
+                    self._validate_operation_resumable()
                     result = self._run_operation_func(ctx, kwargs)
 
             if ctx.operation._operation_retry:
