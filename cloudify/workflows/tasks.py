@@ -623,8 +623,7 @@ class RemoteWorkflowTask(WorkflowTask):
             return MGMTWORKER_QUEUE, MGMTWORKER_QUEUE, None
 
     def _can_resend(self):
-        return (self.cloudify_context['executor'] != 'host_agent' and
-                self._should_resume())
+        return self._should_resume()
 
 
 class LocalWorkflowTask(WorkflowTask):
