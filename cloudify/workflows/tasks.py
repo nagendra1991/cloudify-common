@@ -44,10 +44,12 @@ TASK_SENDING = 'sending'
 TASK_SENT = 'sent'
 TASK_STARTED = 'started'
 TASK_RESCHEDULED = 'rescheduled'
+TASK_RESPONSE_SENT = 'response-sent'
 TASK_SUCCEEDED = 'succeeded'
 TASK_FAILED = 'failed'
+TASK_KILLED = 'killed'
 
-TERMINATED_STATES = [TASK_RESCHEDULED, TASK_SUCCEEDED, TASK_FAILED]
+TERMINATED_STATES = [TASK_RESCHEDULED, TASK_SUCCEEDED, TASK_FAILED, TASK_KILLED]
 
 DISPATCH_TASK = 'cloudify.dispatch.dispatch'
 
@@ -344,7 +346,7 @@ class WorkflowTask(object):
 
     def _should_resume(self):
         """Has this task already been sent and should be resumed?"""
-        return (self._state in (TASK_SENT, TASK_STARTED) and
+        return (self._state in (TASK_SENT, TASK_STARTED, TASK_RESPONSE_SENT) and
                 self.async_result is None)
 
     def _can_resend(self):
