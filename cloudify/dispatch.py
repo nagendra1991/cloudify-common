@@ -13,7 +13,7 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
-
+import asyncio
 import copy
 import json
 import logging
@@ -532,6 +532,34 @@ class OperationHandler(TaskHandler):
             elif ctx.type == constants.RELATIONSHIP_INSTANCE:
                 ctx.source.instance.update()
                 ctx.target.instance.update()
+
+
+class AsyncWorkflowHandler(object):
+    def __init__(self):
+        self._loop = asyncio.get_event_loop()
+        self._loop_thread = threading.Thread(
+            target=self._run_thread, args=(self._loop,))
+
+    def _run_thread(self, loop):
+        loop.run_forever()
+
+    def __call__(self, cloudify_context, args, kwargs):
+        return AsyncWorkflowDispatch(
+            self._loop, cloudify_context, args, kwargs)
+
+
+class AsyncWorkflowDispatch(object):
+    def __init__(self, loop, cloudify_context, args, kwargs):
+        self._loop = loop
+        self._cloudify_context = cloudify_context
+        self._args = args
+        self._kwargs = kwargs
+
+    def handle_or_dispatch_to_subprocess_if_remote(self):
+        self._loop.call_soon_threadsafe(self._handle)
+
+    def handle(self):
+        logging.warning('boom!')
 
 
 class WorkflowHandler(TaskHandler):
