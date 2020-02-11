@@ -53,6 +53,8 @@ from cloudify.error_handling import (
     deserialize_known_exception
 )
 
+logger = logging.getLogger()
+
 ENV_ENCODING = 'utf-8'  # encoding for env variables
 CLOUDIFY_DISPATCH = 'CLOUDIFY_DISPATCH'
 
@@ -556,10 +558,11 @@ class AsyncWorkflowDispatch(object):
         self._kwargs = kwargs
 
     def handle_or_dispatch_to_subprocess_if_remote(self):
+        logger.warning('boom1!')
         self._loop.call_soon_threadsafe(self._handle)
 
     def _handle(self):
-        logging.warning('boom!')
+        logger.warning('boom2!')
 
 
 class WorkflowHandler(TaskHandler):
