@@ -558,7 +558,7 @@ class AsyncWorkflowDispatch(object):
     def handle_or_dispatch_to_subprocess_if_remote(self):
         self._loop.call_soon_threadsafe(self._handle)
 
-    def handle(self):
+    def _handle(self):
         logging.warning('boom!')
 
 
