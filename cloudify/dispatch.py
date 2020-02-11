@@ -541,6 +541,7 @@ class AsyncWorkflowHandler(object):
         self._loop = asyncio.get_event_loop()
         self._loop_thread = threading.Thread(
             target=self._run_thread, args=(self._loop,))
+        self._loop_thread.start()
 
     def _run_thread(self, loop):
         loop.run_forever()
@@ -558,8 +559,8 @@ class AsyncWorkflowDispatch(object):
         self._kwargs = kwargs
 
     def handle_or_dispatch_to_subprocess_if_remote(self):
-        logger.warning('boom1!')
-        self._loop.call_soon_threadsafe(self._handle)
+        x = self._loop.call_soon_threadsafe(self._handle)
+        logger.warning('boom1 {0}!'.format(x))
 
     def _handle(self):
         logger.warning('boom2!')
