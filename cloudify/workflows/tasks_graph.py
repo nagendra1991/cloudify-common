@@ -15,6 +15,7 @@
 
 
 import time
+import logging
 from functools import wraps
 
 
@@ -197,7 +198,7 @@ class TaskDependencyGraph(object):
         """
         # clear error, in case the tasks graph has been reused
         self._error = None
-
+        logging.info('hello')
         while self._error is None:
 
             if self._is_execution_cancelled():
