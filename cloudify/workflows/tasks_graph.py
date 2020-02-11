@@ -26,6 +26,8 @@ from cloudify.workflows import tasks
 from cloudify.state import workflow_ctx
 from cloudify.exceptions import NonRecoverableError
 
+logger = logging.getLogger()
+
 
 def make_or_get_graph(f):
     """Decorate a graph-creating function with this, to automatically
@@ -198,7 +200,7 @@ class TaskDependencyGraph(object):
         """
         # clear error, in case the tasks graph has been reused
         self._error = None
-        logging.info('hello')
+        logger.warning('hello')
         return
         while self._error is None:
 
