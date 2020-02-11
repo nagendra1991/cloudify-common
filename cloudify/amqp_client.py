@@ -409,7 +409,7 @@ class TaskConsumer(object):
                 'ERROR - failed message processing: '
                 '{0!r}\nbody: {1}'.format(e, full_task)
             )
-        if self.late_ack:
+        if self.late_ack and self.late_ack != 'never':
             self._connection.ack(channel, delivery_tag)
         if properties.reply_to:
             if result is NO_RESPONSE:
