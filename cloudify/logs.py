@@ -13,6 +13,7 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
+import aio_pika
 import os
 import sys
 import logging.config
@@ -102,6 +103,7 @@ class CloudifyBaseLoggingHandler(logging.Handler):
         logging.Handler.__init__(self)
         self.context = message_context_builder(ctx)
         self.out_func = out_func or amqp_log_out
+        self.ctx = ctx
 
     def flush(self):
         pass
@@ -116,7 +118,7 @@ class CloudifyBaseLoggingHandler(logging.Handler):
                 'text': message
             }
         }
-        self.out_func(log)
+        self.out_func(self.ctx, log)
 
 
 class CloudifyPluginLoggingHandler(CloudifyBaseLoggingHandler):
@@ -202,8 +204,8 @@ def send_workflow_event(ctx, event_type,
     :param args: additional arguments that may be added to the message
     :param additional_context: additional context to be added to the context
     """
-    _send_event(ctx, 'workflow', event_type, message, args,
-                additional_context, out_func)
+    return _send_event(ctx, 'workflow', event_type, message, args,
+        additional_context, out_func)
 
 
 def send_sys_wide_wf_event(ctx, event_type, message=None, args=None,
@@ -304,7 +306,7 @@ def _send_event(ctx, context_type, event_type,
         }
     }
     out_func = out_func or amqp_event_out
-    out_func(event)
+    return out_func(ctx, event)
 
 
 def populate_base_item(item, message_type):
@@ -315,15 +317,15 @@ def populate_base_item(item, message_type):
     item['type'] = message_type
 
 
-def amqp_event_out(event):
+def amqp_event_out(ctx, event):
     populate_base_item(event, 'cloudify_event')
     message_type = event['context'].get('message_type') or 'event'
-    _publish_message(event, message_type, logging.getLogger('cloudify_events'))
+    return _publish_message(ctx, event, message_type, logging.getLogger('cloudify_events'))
 
 
-def amqp_log_out(log):
+def amqp_log_out(ctx, log):
     populate_base_item(log, 'cloudify_log')
-    _publish_message(log, 'log', logging.getLogger('cloudify_logs'))
+    return _publish_message(ctx, log, 'log', logging.getLogger('cloudify_logs'))
 
 
 def stdout_event_out(event):
@@ -360,18 +362,19 @@ def with_amqp_client(func):
     return wrapper
 
 
-@with_amqp_client
-def _publish_message(client, message, message_type, logger):
-    try:
-        client.publish_message(message, message_type)
-    except ClosedAMQPClientException:
-        raise
-    except BaseException as e:
-        logger.warning(
-            'Error publishing {0} to RabbitMQ ({1})[message={2}]'
-            .format(message_type,
-                    '{0}: {1}'.format(type(e).__name__, e),
-                    json.dumps(message)))
+def _publish_message(ctx, message, message_type, logger):
+    if message_type == 'event':
+        exchange = ctx.worker._events_exchange
+        routing_key = 'events'
+    elif message_type == 'log':
+        exchange = ctx.worker._logs_exchange
+        routing_key = None
+    return exchange.publish(
+        aio_pika.Message(
+            body=json.dumps(message)
+        ),
+        routing_key=routing_key
+    )
 
 
 def setup_logger_base(log_level, log_dir=None):

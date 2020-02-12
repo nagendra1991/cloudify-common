@@ -1191,13 +1191,19 @@ class _SendWorkflowEventTask(_LocalTask):
             }
         }
 
-    def __call__(self):
-        return workflow_ctx.internal.send_workflow_event(
-            event_type=self._event_type,
-            message=self._event,
-            args=self._args,
-            additional_context=self._additional_context
-        )
+    async def __call__(self, ctx):
+        event = {
+            'event_type': self.event_type,
+            'context': logs.message_context_from_workflow_context(ctx),  # NOQA
+            'message': {
+                'text': self._event,
+            }
+        }
+        await ctx.worker._events_exchange.publish(
+            aio_pika.Message(
+                body=json.dumps(event).encode()
+            ),
+            routing_key='events')
 
 
 class _UpdateExecutionStatusTask(_LocalTask):
