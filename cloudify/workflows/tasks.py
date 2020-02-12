@@ -471,7 +471,7 @@ class RemoteWorkflowTask(WorkflowTask):
         """
         async def _run_amqp_task():
             self._set_queue_kwargs()
-            channel = self.workflow_ctx.worker.channel
+            channel = self.workflow_context.worker.channel
             exchange = await channel.exchange_declare(
                 self._task_target,
                 durable=True
