@@ -587,21 +587,28 @@ class RemoteWorkflowTask(WorkflowTask):
         self.kwargs['__cloudify_context']['task_queue'] = self._task_queue
         self.kwargs['__cloudify_context']['task_target'] = self._task_target
 
-    def _get_agent_settings(self, node_instance_id, deployment_id,
+    async def _get_agent_settings(self, node_instance_id, deployment_id,
                             tenant=None):
         """Get the cloudify_agent dict and the tenant dict of the agent.
 
         This returns cloudify_agent of the actual agent, possibly available
         via deployment proxying.
         """
+        ni_response = await self.workflow_context.request(
+            'GET',
+            'node-instances/{0}'.format(node_instance_id))
+        node_instance = await ni_response.json()
         client = get_rest_client(tenant)
         node_instance = client.node_instances.get(node_instance_id)
-        host_id = node_instance.host_id
+        host_id = node_instance['host_id']
         if host_id == node_instance_id:
             host_node_instance = node_instance
         else:
-            host_node_instance = client.node_instances.get(host_id)
-        cloudify_agent = host_node_instance.runtime_properties.get(
+            host_response = await self.workflow_context.request(
+                'GET',
+                'node-instances/{0}'.format(host_id))
+            host_node_instance = await ni_response.json()
+        cloudify_agent = host_node_instance['runtime_properties'].get(
             'cloudify_agent', {})
 
         # we found the actual agent, just return it
@@ -611,13 +618,13 @@ class RemoteWorkflowTask(WorkflowTask):
         # this node instance isn't the real agent, check if it proxies to one.
         # Evaluate functions because proxy info might contain runtime
         # intrinsic functions (get_attributes/get_capabilities)
-        node = client.nodes.get(
-            deployment_id,
-            host_node_instance.node_id,
-            evaluate_functions=True
-        )
+        node_response = await self.workflow_context.request(
+            'GET',
+            'nodes?deployment_id={0}&id={1}&_evaluate_functions=True'
+            .format(deployment_id, host_node_instance['node_id']))
+        node = await node_response.json()[0]
         try:
-            remote = node.properties['agent_config']['extra']['proxy']
+            remote = node['properties']['agent_config']['extra']['proxy']
             proxy_deployment = remote['deployment']
             proxy_node_instance = remote['node_instance']
             proxy_tenant = remote.get('tenant')
