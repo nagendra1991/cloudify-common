@@ -1161,7 +1161,10 @@ class _SendNodeEventTask(_LocalTask):
             }
         }
         await ctx.worker._events_exchange.publish(
-            json.dumps(event), routing_key='events')
+            aio_pika.Message(
+                body=json.dumps(event).encode()
+            ),
+            routing_key='events')
 
     def local(self):
         self.send(out_func=logs.stdout_event_out)
