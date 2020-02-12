@@ -621,7 +621,8 @@ class RemoteWorkflowTask(WorkflowTask):
             'GET',
             'nodes?deployment_id={0}&id={1}&_evaluate_functions=True'
             .format(deployment_id, host_node_instance['node_id']))
-        node = await node_response.json()[0]
+        node = await node_response.json()
+        node = node[0]
         try:
             remote = node['properties']['agent_config']['extra']['proxy']
             proxy_deployment = remote['deployment']
