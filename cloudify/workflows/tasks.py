@@ -1154,7 +1154,7 @@ class _SendNodeEventTask(_LocalTask):
             self._node_instance_id)
         event = {
             'event_type': 'workflow_node_event',
-            'context': logs.message_context_from_workflow_node_instance_context(ctx),  # NOQA
+            'context': logs.message_context_from_workflow_context(ctx),  # NOQA
             'message': {
                 'text': self._event,
             }
