@@ -13,6 +13,7 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
+import logging
 import sys
 import time
 import uuid
@@ -50,6 +51,8 @@ TASK_FAILED = 'failed'
 TERMINATED_STATES = [TASK_RESCHEDULED, TASK_SUCCEEDED, TASK_FAILED]
 
 DISPATCH_TASK = 'cloudify.dispatch.dispatch'
+
+logger = logging.getLogger()
 
 
 def retry_failure_handler(task):
@@ -724,6 +727,7 @@ class LocalWorkflowTask(WorkflowTask):
         Execute the task in the local task thread pool
         :return: A wrapper for the task result
         """
+        logger.info('local task %s', self.local_task)
         self.async_result = succeed(self)
         return 
         def local_task_wrapper():
