@@ -469,6 +469,9 @@ class RemoteWorkflowTask(WorkflowTask):
 
         :return: a RemoteWorkflowTaskResult instance wrapping the async result
         """
+        def _received(msg):
+            logger.info('GOT RESPONSE %s', msg)
+
         async def _run_amqp_task():
             self._set_queue_kwargs()
             channel = self.workflow_context.worker.channel
@@ -493,11 +496,8 @@ class RemoteWorkflowTask(WorkflowTask):
                 ),
                 routing_key='operation'
             )
-            logger.info('start iterator')
-            async with response_queue.iterator() as q:
-                async for response in q:
-                    logger.info('RESPONSE %s: %s', response, response.body)
-                    break
+            await response_queue.consume(_received, no_ack=True)
+
             logger.info('done iterator')
             return self
         self.async_result = asyncio.ensure_future(_run_amqp_task())
