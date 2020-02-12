@@ -498,7 +498,7 @@ class RemoteWorkflowTask(WorkflowTask):
                 async for response in q:
                     logger.info('RESPONSE %s: %s', response, response.body)
                     break
-            logger.info('done iterator')
+            await response_queue.delete()
             return self
         self.async_result = asyncio.ensure_future(_run_amqp_task())
         return 
