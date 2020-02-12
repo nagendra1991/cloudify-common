@@ -588,7 +588,6 @@ def restart(ctx, stop_parms, start_parms, run_by_dependency_order, type_names,
           node_ids, node_instance_ids, **kwargs)
 
 
-@make_or_get_graph
 def _make_execute_operation_graph(ctx, operation, operation_kwargs,
                                   allow_kwargs_override,
                                   run_by_dependency_order, type_names,
@@ -660,7 +659,7 @@ def execute_operation(ctx, operation, *args, **kwargs):
     name = 'execute_operation_{0}'.format(operation)
     graph = _make_execute_operation_graph(
         ctx, operation, name=name, *args, **kwargs)
-    graph.execute()
+    return graph.execute()
 
 
 @workflow
