@@ -487,6 +487,7 @@ class RemoteWorkflowTask(WorkflowTask):
             response_queue = await channel.declare_queue(
                 response_queue_name, durable=True
             )
+            await response_queue.bind(self._task_target)
             await exchange.publish(
                 message=aio_pika.Message(
                     body=json.dumps({
@@ -498,7 +499,6 @@ class RemoteWorkflowTask(WorkflowTask):
                 ),
                 routing_key='operation'
             )
-            await response_queue.bind(self._task_target)
             async with response_queue.iterator() as q:
                 async for response in q:
                     break
