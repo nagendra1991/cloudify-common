@@ -1209,8 +1209,8 @@ class _SendWorkflowEventTask(_LocalTask):
             }
         }
 
-    def __call__(self):
-        return workflow_ctx.internal.send_workflow_event(
+    def __call__(self, ctx):
+        return ctx.internal.send_workflow_event(
             event_type=self._event_type,
             message=self._event,
             args=self._args,
