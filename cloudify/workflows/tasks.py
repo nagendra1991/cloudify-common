@@ -475,6 +475,7 @@ class RemoteWorkflowTask(WorkflowTask):
                 '/'
                 if self._task_tenant is None else
                 'rabbitmq_vhost_{0}'.format(self._task_tenant['name']))
+            logger.info('vhost %s target %s', vhost, self._task_target)
             channel = await self.workflow_context.worker.get_channel(
                 vhost)
             exchange = await channel.declare_exchange(
