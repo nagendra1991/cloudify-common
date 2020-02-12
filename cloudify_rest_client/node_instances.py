@@ -86,6 +86,10 @@ class NodeInstance(dict):
         """
         return self.get('version')
 
+    @version.setter
+    def version(self, val):
+        self['version'] = val
+
     @property
     def scaling_groups(self):
         """
