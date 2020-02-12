@@ -218,7 +218,7 @@ def send_sys_wide_wf_event(ctx, event_type, message=None, args=None,
     :param args: additional arguments that may be added to the message
     :param additional_context: additional context to be added to the context
     """
-    _send_event(ctx, 'system_wide_workflow', event_type, message, args,
+    return _send_event(ctx, 'system_wide_workflow', event_type, message, args,
                 additional_context, out_func)
 
 
@@ -235,7 +235,7 @@ def send_workflow_node_event(ctx, event_type,
     :param args: additional arguments that may be added to the message
     :param additional_context: additional context to be added to the context
     """
-    _send_event(ctx, 'workflow_node', event_type, message, args,
+    return _send_event(ctx, 'workflow_node', event_type, message, args,
                 additional_context, out_func)
 
 
@@ -251,7 +251,7 @@ def send_plugin_event(ctx,
     :param args: additional arguments that may be added to the message
     :param additional_context: additional context to be added to the context
     """
-    _send_event(ctx, 'plugin', 'plugin_event', message, args,
+    return _send_event(ctx, 'plugin', 'plugin_event', message, args,
                 additional_context, out_func)
 
 
@@ -272,7 +272,7 @@ def send_task_event(cloudify_context,
     """
     # import here to avoid cyclic dependencies
     from cloudify.context import CloudifyContext
-    _send_event(CloudifyContext(cloudify_context),
+    return _send_event(CloudifyContext(cloudify_context),
                 'task', event_type, message, args,
                 additional_context,
                 out_func)
