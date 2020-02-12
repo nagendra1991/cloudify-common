@@ -601,6 +601,7 @@ class RemoteWorkflowTask(WorkflowTask):
             .format(node_instance_id))
         node_instance = await ni_response.json()
         host_id = node_instance['host_id']
+        logger.info('node_instance_id %s host_id %s', node_instance_id, host_id)
         if host_id == node_instance_id:
             host_node_instance = node_instance
         else:
