@@ -594,7 +594,8 @@ class RemoteWorkflowTask(WorkflowTask):
         This returns cloudify_agent of the actual agent, possibly available
         via deployment proxying.
         """
-        ni_response = await self.workflow_context.request(
+        client = self.workflow_context.rest_client
+        ni_response = await client.request(
             'GET',
             'node-instances/{0}'.format(node_instance_id))
         node_instance = await ni_response.json()
@@ -604,7 +605,7 @@ class RemoteWorkflowTask(WorkflowTask):
         if host_id == node_instance_id:
             host_node_instance = node_instance
         else:
-            host_response = await self.workflow_context.request(
+            host_response = await client.request(
                 'GET',
                 'node-instances/{0}'.format(host_id))
             host_node_instance = await ni_response.json()
@@ -618,7 +619,7 @@ class RemoteWorkflowTask(WorkflowTask):
         # this node instance isn't the real agent, check if it proxies to one.
         # Evaluate functions because proxy info might contain runtime
         # intrinsic functions (get_attributes/get_capabilities)
-        node_response = await self.workflow_context.request(
+        node_response = await client.request(
             'GET',
             'nodes?deployment_id={0}&id={1}&_evaluate_functions=True'
             .format(deployment_id, host_node_instance['node_id']))
