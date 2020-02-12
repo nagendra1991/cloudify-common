@@ -1152,21 +1152,15 @@ class _SendNodeEventTask(_LocalTask):
         }
 
     # local/remote only differ by the used output function
-    async def remote(self, ctx):
-        node_instance = ctx.get_node_instance(
-            self._node_instance_id)
-        event = {
-            'event_type': 'workflow_node_event',
-            'context': logs.message_context_from_workflow_context(ctx),  # NOQA
-            'message': {
-                'text': self._event,
-            }
-        }
-        await ctx.worker._events_exchange.publish(
-            aio_pika.Message(
-                body=json.dumps(event).encode()
-            ),
-            routing_key='events')
+    def remote(self, ctx):
+        node_instance = ctx.get_node_instance(self._node_instance_id)
+        return logs.send_workflow_node_event(
+            ctx,
+            ctx=node_instance,
+            event_type='workflow_node_event',
+            message=self._event,
+            additional_context=self._additional_context,
+            out_func=out_func)
 
     def local(self):
         self.send(out_func=logs.stdout_event_out)
