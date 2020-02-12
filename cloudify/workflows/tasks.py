@@ -1159,8 +1159,7 @@ class _SendNodeEventTask(_LocalTask):
             ctx=node_instance,
             event_type='workflow_node_event',
             message=self._event,
-            additional_context=self._additional_context,
-            out_func=out_func)
+            additional_context=self._additional_context)
 
     def local(self):
         self.send(out_func=logs.stdout_event_out)
