@@ -608,6 +608,7 @@ class RemoteWorkflowTask(WorkflowTask):
                 'GET',
                 'node-instances/{0}?_get_all_results=True'.format(host_id))
             host_node_instance = await ni_response.json()
+        logger.info('host node instance %s', host_node_instance)
         cloudify_agent = host_node_instance['runtime_properties'].get(
             'cloudify_agent', {})
 
