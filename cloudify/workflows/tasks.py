@@ -13,6 +13,7 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
+import asyncio
 import aio_pika
 import json
 import logging
@@ -735,7 +736,7 @@ class LocalWorkflowTask(WorkflowTask):
                 self.workflow_context, **self.kwargs)
             return self
         logger.info('calling runlocal %s', self.local_task)
-        self.async_result = _run_local_task()
+        self.async_result = asyncio.ensure_future(_run_local_task())
         return 
         def local_task_wrapper():
             try:
