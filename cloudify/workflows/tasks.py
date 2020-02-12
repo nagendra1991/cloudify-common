@@ -599,8 +599,6 @@ class RemoteWorkflowTask(WorkflowTask):
             'GET',
             'node-instances/{0}'.format(node_instance_id))
         node_instance = await ni_response.json()
-        client = get_rest_client(tenant)
-        node_instance = client.node_instances.get(node_instance_id)
         host_id = node_instance['host_id']
         if host_id == node_instance_id:
             host_node_instance = node_instance
