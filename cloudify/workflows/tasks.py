@@ -469,17 +469,39 @@ class RemoteWorkflowTask(WorkflowTask):
 
         :return: a RemoteWorkflowTaskResult instance wrapping the async result
         """
-        # the task should be sent to the agent if either:
-        # 1) this is the first execution of this task (state=pending)
-        # 2) this is a resume (state=sent|started) and the task is a central
-        #    deployment agent task
-        self.async_result = succeed(self)
+        async def _run_amqp_task():
+            self._set_queue_kwargs()
+            channel = self.workflow_ctx.worker.channel
+            exchange = await channel.exchange_declare(
+                self._task_target,
+                durable=True
+            )
+            correlation_id = uuid.uuid4().hex
+            response_queue_name = '{0}_response_{1}'.format(
+                self._task_target, correlation_id)
+            response_queue = await channel.queue_declare(
+                response_queue_name, durable=True
+            )
+            await exchange.publish(
+                message=aio_pika.Message(
+                    body=json.dumps({
+                        'id': self.id,
+                        'cloudify_task': {'kwargs': self.kwargs}
+                    }).encode(),
+                    correlation_id=correlation_id,
+                    reply_to=response_queue_name
+                ),
+                routing_key='operation'
+            )
+            response = await response_queue.get()
+            logger.info('RESPONSE %s', response)
+        self.async_result = asyncio.ensure_future(_run_amqp_task())
         return 
+
         should_send = self._state == TASK_PENDING or self._should_resume()
         if self._state == TASK_PENDING:
             self.set_state(TASK_SENDING)
         try:
-            self._set_queue_kwargs()
             if self._can_resend():
                 self.kwargs['__cloudify_context']['resume'] = True
             task = self.workflow_context.internal.handler.get_task(
@@ -731,11 +753,9 @@ class LocalWorkflowTask(WorkflowTask):
         :return: A wrapper for the task result
         """
         async def _run_local_task():
-            logger.info('local task %s', self.local_task)
             await self.local_task(
                 self.workflow_context, **self.kwargs)
             return self
-        logger.info('calling runlocal %s', self.local_task)
         self.async_result = asyncio.ensure_future(_run_local_task())
         return 
         def local_task_wrapper():
