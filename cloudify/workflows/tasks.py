@@ -471,8 +471,12 @@ class RemoteWorkflowTask(WorkflowTask):
         """
         async def _run_amqp_task():
             self._set_queue_kwargs()
+            vhost = (
+                '/'
+                if self._task_tenant is None else
+                'rabbitmq_vhost_{0}'.format(self._task_tenant['name']))
             channel = await self.workflow_context.worker.get_channel(
-                self._task_tenant)
+                vhost)
             exchange = await channel.declare_exchange(
                 self._task_target,
                 durable=True
