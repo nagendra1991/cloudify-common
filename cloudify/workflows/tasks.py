@@ -732,6 +732,7 @@ class LocalWorkflowTask(WorkflowTask):
             await self.local_task(
                 self.workflow_context, **self.kwargs)
             return self
+        logger.info('calling runlocal %s', self.local_task)
         self.async_result = _run_local_task()
         return 
         def local_task_wrapper():
@@ -1048,7 +1049,7 @@ class _LocalTask(object):
 
     # split local/remote on this level. This allows us to reuse implementation,
     # avoiding the need for separate local/remote subclasses.
-    async def __call__(self, workflow_ctx):
+    def __call__(self, workflow_ctx):
         if workflow_ctx.local:
             return self.local(workflow_ctx)
         else:
