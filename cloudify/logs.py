@@ -204,7 +204,7 @@ def send_workflow_event(ctx, event_type,
     :param args: additional arguments that may be added to the message
     :param additional_context: additional context to be added to the context
     """
-    return _send_event(ctx, 'workflow', event_type, message, args,
+    return _send_event(ctx, ctx, 'workflow', event_type, message, args,
         additional_context, out_func)
 
 
@@ -222,7 +222,7 @@ def send_sys_wide_wf_event(ctx, event_type, message=None, args=None,
                 additional_context, out_func)
 
 
-def send_workflow_node_event(ctx, event_type,
+def send_workflow_node_event(wctx, ctx, event_type,
                              message=None,
                              args=None,
                              additional_context=None,
@@ -235,7 +235,7 @@ def send_workflow_node_event(ctx, event_type,
     :param args: additional arguments that may be added to the message
     :param additional_context: additional context to be added to the context
     """
-    return _send_event(ctx, 'workflow_node', event_type, message, args,
+    return _send_event(wctx, ctx, 'workflow_node', event_type, message, args,
                 additional_context, out_func)
 
 
@@ -278,7 +278,7 @@ def send_task_event(cloudify_context,
                 out_func)
 
 
-def _send_event(ctx, context_type, event_type,
+def _send_event(wctx, ctx, context_type, event_type,
                 message, args, additional_context,
                 out_func):
     if context_type in ['plugin', 'task']:
@@ -306,7 +306,7 @@ def _send_event(ctx, context_type, event_type,
         }
     }
     out_func = out_func or amqp_event_out
-    return out_func(ctx, event)
+    return out_func(wctx, event)
 
 
 def populate_base_item(item, message_type):
