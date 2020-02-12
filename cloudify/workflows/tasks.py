@@ -470,7 +470,7 @@ class RemoteWorkflowTask(WorkflowTask):
         :return: a RemoteWorkflowTaskResult instance wrapping the async result
         """
         async def _run_amqp_task():
-            self._set_queue_kwargs()
+            await self._set_queue_kwargs()
             vhost = (
                 '/'
                 if self._task_tenant is None else
@@ -575,9 +575,9 @@ class RemoteWorkflowTask(WorkflowTask):
         """kwargs to pass when invoking the task"""
         return self._kwargs
 
-    def _set_queue_kwargs(self):
+    async def _set_queue_kwargs(self):
         if self._task_queue is None or self._task_target is None:
-            queue, name, tenant = self._get_queue_kwargs()
+            queue, name, tenant = await self._get_queue_kwargs()
             if self._task_queue is None:
                 self._task_queue = queue
             if self._task_target is None:
@@ -655,7 +655,7 @@ class RemoteWorkflowTask(WorkflowTask):
                 .format(tenant_name))
         return tenant
 
-    def _get_queue_kwargs(self):
+    async def _get_queue_kwargs(self):
         """Queue, name, and tenant of the agent that will execute the task
 
         This must return the values of the actual agent, possibly
@@ -664,7 +664,7 @@ class RemoteWorkflowTask(WorkflowTask):
         executor = self.cloudify_context['executor']
         if executor == 'host_agent':
             if self._cloudify_agent is None:
-                self._cloudify_agent, tenant = self._get_agent_settings(
+                self._cloudify_agent, tenant = await self._get_agent_settings(
                     node_instance_id=self.cloudify_context['node_id'],
                     deployment_id=self.cloudify_context['deployment_id'],
                     tenant=None)
