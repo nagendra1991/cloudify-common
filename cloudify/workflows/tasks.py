@@ -472,14 +472,14 @@ class RemoteWorkflowTask(WorkflowTask):
         async def _run_amqp_task():
             self._set_queue_kwargs()
             channel = self.workflow_context.worker.channel
-            exchange = await channel.exchange_declare(
+            exchange = await channel.declare_exchange(
                 self._task_target,
                 durable=True
             )
             correlation_id = uuid.uuid4().hex
             response_queue_name = '{0}_response_{1}'.format(
                 self._task_target, correlation_id)
-            response_queue = await channel.queue_declare(
+            response_queue = await channel.declare_queue(
                 response_queue_name, durable=True
             )
             await exchange.publish(
