@@ -1089,8 +1089,6 @@ class _SetNodeInstanceStateTask(_LocalTask):
         }
 
     async def remote(self, ctx):
-        logger.info('_SetNodeInstanceStateTask')
-        return 5
         node_instance = ctx.get_node_instance(self._node_instance_id)
 
         await ctx.rest_client.request(
@@ -1154,6 +1152,8 @@ class _SendNodeEventTask(_LocalTask):
 
     # local/remote only differ by the used output function
     async def remote(self, ctx):
+        logger.info('_SetNodeInstanceStateTask')
+        return
         node_instance = ctx.get_node_instance(
             self._node_instance_id)
         event = {
