@@ -57,6 +57,10 @@ def retry_failure_handler(task):
     return HandlerResult.retry()
 
 
+async def succeed(item):
+    return item
+
+
 class WorkflowTask(object):
     """A base class for workflow tasks"""
 
@@ -463,6 +467,8 @@ class RemoteWorkflowTask(WorkflowTask):
         # 1) this is the first execution of this task (state=pending)
         # 2) this is a resume (state=sent|started) and the task is a central
         #    deployment agent task
+        self.async_result = succeed(self)
+        return 
         should_send = self._state == TASK_PENDING or self._should_resume()
         if self._state == TASK_PENDING:
             self.set_state(TASK_SENDING)
@@ -718,7 +724,8 @@ class LocalWorkflowTask(WorkflowTask):
         Execute the task in the local task thread pool
         :return: A wrapper for the task result
         """
-
+        self.async_result = succeed(self)
+        return 
         def local_task_wrapper():
             try:
                 self.workflow_context.internal.send_task_event(TASK_STARTED,
@@ -796,6 +803,8 @@ class NOPLocalWorkflowTask(LocalWorkflowTask):
         return stored
 
     def apply_async(self):
+        self.async_result = succeed(self)
+        return 
         self.set_state(TASK_SUCCEEDED)
         return LocalWorkflowTaskResult(self)
 
@@ -807,6 +816,8 @@ class NOPLocalWorkflowTask(LocalWorkflowTask):
 class DryRunLocalWorkflowTask(LocalWorkflowTask):
 
     def apply_async(self):
+        self.async_result = succeed(self)
+        return 
         self.workflow_context.internal.send_task_event(TASK_SENDING, self)
         self.workflow_context.internal.send_task_event(TASK_STARTED, self)
         self.workflow_context.internal.send_task_event(
