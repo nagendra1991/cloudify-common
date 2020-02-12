@@ -371,7 +371,7 @@ def _publish_message(ctx, message, message_type, logger):
         routing_key = None
     return exchange.publish(
         aio_pika.Message(
-            body=json.dumps(message)
+            body=json.dumps(message).encode()
         ),
         routing_key=routing_key
     )
