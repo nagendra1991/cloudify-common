@@ -1097,7 +1097,7 @@ class _SetNodeInstanceStateTask(_LocalTask):
                 'version': node_instance._node_instance.version
             }
         )
-        node_instance.version += 1
+        node_instance._node_instance.version += 1
         node_instance.state = self._state
         return node_instance
 
