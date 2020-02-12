@@ -664,10 +664,10 @@ class RemoteWorkflowTask(WorkflowTask):
         executor = self.cloudify_context['executor']
         if executor == 'host_agent':
             if self._cloudify_agent is None:
-                self._cloudify_agent = self.workflow_context.get_node_instance(
-                    self.cloudify_context['node_id']
-                )._node_instance.runtime_properties['cloudify_agent']
-                tenant = self.workflow_context.tenant
+                self._cloudify_agent, tenant = self._get_agent_settings(
+                    node_instance_id=self.cloudify_context['node_id'],
+                    deployment_id=self.cloudify_context['deployment_id'],
+                    tenant=None)
             return (self._cloudify_agent['queue'],
                     self._cloudify_agent['name'],
                     tenant)
