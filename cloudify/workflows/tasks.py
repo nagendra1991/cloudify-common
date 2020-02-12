@@ -601,15 +601,13 @@ class RemoteWorkflowTask(WorkflowTask):
             .format(node_instance_id))
         node_instance = await ni_response.json()
         host_id = node_instance['host_id']
-        logger.info('node_instance_id %s host_id %s', node_instance_id, host_id)
         if host_id == node_instance_id:
             host_node_instance = node_instance
         else:
             host_response = await client.request(
                 'GET',
                 'node-instances/{0}?_get_all_results=True'.format(host_id))
-            host_node_instance = await ni_response.json()
-        logger.info('host node instance %s', host_node_instance)
+            host_node_instance = await host_response.json()
         cloudify_agent = host_node_instance['runtime_properties'].get(
             'cloudify_agent', {})
 
