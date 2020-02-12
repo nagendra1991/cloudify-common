@@ -1150,7 +1150,7 @@ class _SendNodeEventTask(_LocalTask):
 
     # local/remote only differ by the used output function
     async def remote(self, ctx):
-        node_instance = workflow_ctx.get_node_instance(
+        node_instance = ctx.get_node_instance(
             self._node_instance_id)
         event = {
             'event_type': 'workflow_node_event',
