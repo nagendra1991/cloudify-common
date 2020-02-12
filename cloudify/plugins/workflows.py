@@ -639,9 +639,10 @@ def _make_execute_operation_graph(ctx, operation, operation_kwargs,
         subgraph = graph.subgraph(instance.id)
         sequence = subgraph.sequence()
         sequence.add(
-            instance.send_event(start_event_message),
+            # instance.send_event(start_event_message),
             instance.execute_operation(**exec_op_params),
-            instance.send_event('Finished operation {0}'.format(operation)))
+            # instance.send_event('Finished operation {0}'.format(operation))
+        )
         subgraphs[instance.id] = subgraph
 
     # adding tasks dependencies if required
