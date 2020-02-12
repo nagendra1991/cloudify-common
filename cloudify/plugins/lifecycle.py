@@ -26,7 +26,7 @@ def install_node_instances(graph, node_instances, related_nodes=None):
     processor = LifecycleProcessor(graph=graph,
                                    node_instances=node_instances,
                                    related_nodes=related_nodes)
-    processor.install()
+    return processor.install()
 
 
 def uninstall_node_instances(graph,
@@ -98,7 +98,7 @@ class LifecycleProcessor(object):
             workflow_ctx,
             node_instance_subgraph_func=install_node_instance_subgraph,
             graph_finisher_func=self._finish_install)
-        graph.execute()
+        return graph.execute()
 
     def uninstall(self):
         graph = self._process_node_instances(
