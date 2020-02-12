@@ -758,8 +758,10 @@ class LocalWorkflowTask(WorkflowTask):
         :return: A wrapper for the task result
         """
         async def _run_local_task():
-            await self.local_task(
+            result = self.local_task(
                 self.workflow_context, **self.kwargs)
+            if result is not None:
+                await result
             return self
         self.async_result = asyncio.ensure_future(_run_local_task())
         return 
