@@ -78,6 +78,10 @@ class NodeInstance(dict):
         """
         return self.get('state')
 
+    @state.setter
+    def state(self, val):
+        self['state'] = val
+
     @property
     def version(self):
         """
