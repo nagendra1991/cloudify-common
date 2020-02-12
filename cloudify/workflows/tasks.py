@@ -1094,7 +1094,7 @@ class _SetNodeInstanceStateTask(_LocalTask):
             'node-instances/{0}'.format(self._node_instance_id),
             json={
                 'state': self._state,
-                'version': node_instance.version
+                'version': node_instance._node_instance.version
             }
         )
         node_instance.version += 1
