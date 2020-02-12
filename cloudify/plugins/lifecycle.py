@@ -109,7 +109,6 @@ class LifecycleProcessor(object):
             graph_finisher_func=self._finish_uninstall)
         graph.execute()
 
-    @make_or_get_graph
     def _process_node_instances(self,
                                 ctx,
                                 node_instance_subgraph_func,
