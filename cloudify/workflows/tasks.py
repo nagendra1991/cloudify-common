@@ -475,7 +475,6 @@ class RemoteWorkflowTask(WorkflowTask):
                 '/'
                 if self._task_tenant is None else
                 'rabbitmq_vhost_{0}'.format(self._task_tenant['name']))
-            logger.info('vhost %s target %s', vhost, self._task_target)
             channel = await self.workflow_context.worker.get_channel(
                 vhost)
             exchange = await channel.declare_exchange(
@@ -502,7 +501,6 @@ class RemoteWorkflowTask(WorkflowTask):
             await response_queue.bind(self._task_target)
             async with response_queue.iterator() as q:
                 async for response in q:
-                    logger.info('RESPONSE %s: %s', response, response.body)
                     break
             await response_queue.delete()
             return self
