@@ -727,8 +727,12 @@ class LocalWorkflowTask(WorkflowTask):
         Execute the task in the local task thread pool
         :return: A wrapper for the task result
         """
-        logger.info('local task %s', self.local_task)
-        self.async_result = succeed(self)
+        async def _run_local_task():
+            logger.info('local task %s', self.local_task)
+            await self.local_task(
+                self.workflow_context, **self.kwargs)
+            return self
+        self.async_result = _run_local_task()
         return 
         def local_task_wrapper():
             try:
@@ -1044,16 +1048,16 @@ class _LocalTask(object):
 
     # split local/remote on this level. This allows us to reuse implementation,
     # avoiding the need for separate local/remote subclasses.
-    def __call__(self):
+    async def __call__(self, workflow_ctx):
         if workflow_ctx.local:
-            return self.local()
+            return self.local(workflow_ctx)
         else:
-            return self.remote()
+            return self.remote(workflow_ctx)
 
-    def local(self):
+    async def local(self, ctx):
         raise NotImplementedError('Implemented by subclasses')
 
-    def remote(self):
+    async def remote(self, ctx):
         raise NotImplementedError('Implemented by subclasses')
 
     @property
@@ -1081,10 +1085,19 @@ class _SetNodeInstanceStateTask(_LocalTask):
             }
         }
 
-    def remote(self):
-        node_instance = get_node_instance(self._node_instance_id)
+    async def remote(self, ctx):
+        node_instance = ctx.get_node_instance(self._node_instance_id)
+
+        await ctx.rest_client.request(
+            'PATCH', 
+            'node-instances/{0}'.format(self._node_instance_id),
+            json={
+                'state': self._state,
+                'version': node_instance.version
+            }
+        )
+        node_instance.version += 1
         node_instance.state = self._state
-        update_node_instance(node_instance)
         return node_instance
 
     def local(self):
@@ -1135,21 +1148,21 @@ class _SendNodeEventTask(_LocalTask):
         }
 
     # local/remote only differ by the used output function
-    def remote(self):
-        self.send(out_func=logs.amqp_event_out)
+    async def remote(self, ctx):
+        node_instance = workflow_ctx.get_node_instance(
+            self._node_instance_id)
+        event = {
+            'event_type': 'workflow_node_event',
+            'context': logs.message_context_from_workflow_node_instance_context(ctx),  # NOQA
+            'message': {
+                'text': self._event,
+            }
+        }
+        await ctx.worker._events_exchange.publish(
+            json.dumps(event), routing_key='events')
 
     def local(self):
         self.send(out_func=logs.stdout_event_out)
-
-    def send(self, out_func):
-        node_instance = workflow_ctx.get_node_instance(
-            self._node_instance_id)
-        logs.send_workflow_node_event(
-            ctx=node_instance,
-            event_type='workflow_node_event',
-            message=self._event,
-            additional_context=self._additional_context,
-            out_func=out_func)
 
 
 class _SendWorkflowEventTask(_LocalTask):
