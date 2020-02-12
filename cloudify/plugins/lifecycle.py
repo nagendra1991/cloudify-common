@@ -96,7 +96,6 @@ class LifecycleProcessor(object):
     def install(self):
         graph = self._process_node_instances(
             workflow_ctx,
-            name=self._name_prefix + 'install',
             node_instance_subgraph_func=install_node_instance_subgraph,
             graph_finisher_func=self._finish_install)
         graph.execute()
@@ -104,7 +103,6 @@ class LifecycleProcessor(object):
     def uninstall(self):
         graph = self._process_node_instances(
             workflow_ctx,
-            name=self._name_prefix + 'uninstall',
             node_instance_subgraph_func=uninstall_node_instance_subgraph,
             graph_finisher_func=self._finish_uninstall)
         graph.execute()
