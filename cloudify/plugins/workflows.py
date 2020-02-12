@@ -26,7 +26,7 @@ from mgmtworker.workflows import lifecycle
 @workflow(resumable=True)
 def install(ctx, **kwargs):
     """Default install workflow"""
-    lifecycle.install_node_instances(
+    return lifecycle.install_node_instances(
         graph=ctx.graph_mode(),
         node_instances=set(ctx.node_instances))
 
