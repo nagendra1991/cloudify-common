@@ -493,7 +493,7 @@ class RemoteWorkflowTask(WorkflowTask):
                 ),
                 routing_key='operation'
             )
-            response = await response_queue.get()
+            response = await response_queue.get(no_ack=True, timeout=3600)
             logger.info('RESPONSE %s', response)
         self.async_result = asyncio.ensure_future(_run_amqp_task())
         return 
