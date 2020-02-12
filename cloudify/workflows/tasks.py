@@ -1179,12 +1179,12 @@ class _SendNodeEventTask(_LocalTask):
     # local/remote only differ by the used output function
     def remote(self, ctx):
         node_instance = ctx.get_node_instance(self._node_instance_id)
-        return logs.send_workflow_node_event(
+        asyncio.ensure_future(logs.send_workflow_node_event(
             ctx,
             ctx=node_instance,
             event_type='workflow_node_event',
             message=self._event,
-            additional_context=self._additional_context)
+            additional_context=self._additional_context))
 
     def local(self):
         self.send(out_func=logs.stdout_event_out)
