@@ -17,10 +17,10 @@ from itertools import chain
 
 from cloudify import constants, utils
 from cloudify.decorators import workflow
-from cloudify.plugins import lifecycle
 from cloudify.manager import get_rest_client
 from cloudify.workflows.tasks_graph import make_or_get_graph
 from cloudify.utils import add_plugins_to_install, add_plugins_to_uninstall
+from mgmtworker.workflows import lifecycle
 
 
 @workflow(resumable=True)
