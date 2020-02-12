@@ -597,7 +597,8 @@ class RemoteWorkflowTask(WorkflowTask):
         client = self.workflow_context.rest_client
         ni_response = await client.request(
             'GET',
-            'node-instances/{0}'.format(node_instance_id))
+            'node-instances/{0}?_get_all_results=True'
+            .format(node_instance_id))
         node_instance = await ni_response.json()
         host_id = node_instance['host_id']
         if host_id == node_instance_id:
@@ -605,7 +606,7 @@ class RemoteWorkflowTask(WorkflowTask):
         else:
             host_response = await client.request(
                 'GET',
-                'node-instances/{0}'.format(host_id))
+                'node-instances/{0}?_get_all_results=True'.format(host_id))
             host_node_instance = await ni_response.json()
         cloudify_agent = host_node_instance['runtime_properties'].get(
             'cloudify_agent', {})
@@ -619,7 +620,7 @@ class RemoteWorkflowTask(WorkflowTask):
         # intrinsic functions (get_attributes/get_capabilities)
         node_response = await client.request(
             'GET',
-            'nodes?deployment_id={0}&id={1}&_evaluate_functions=True'
+            'nodes?deployment_id={0}&id={1}&_evaluate_functions=True&_get_all_results=True'  # NOQA
             .format(deployment_id, host_node_instance['node_id']))
         node = await node_response.json()
         node = node[0]
