@@ -509,7 +509,7 @@ class RemoteWorkflowTask(WorkflowTask):
             await self.workflow_context.internal.send_task_event(
                 TASK_SUCCEEDED, self, event={'result': result})
 
-            await response_queue.delete()
+            asyncio.ensure_future(response_queue.delete())
             return self
         self.async_result = asyncio.ensure_future(_run_amqp_task())
         return 
