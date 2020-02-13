@@ -504,7 +504,8 @@ class RemoteWorkflowTask(WorkflowTask):
             result = None
             async with response_queue.iterator() as q:
                 async for response in q:
-                    result = json.loads(response.body).get('result')
+                    logger.info('response %s', response)
+                    result = None
             await self.workflow_context.internal.send_task_event(
                 TASK_SUCCEEDED, self, event={'result': result})
 
