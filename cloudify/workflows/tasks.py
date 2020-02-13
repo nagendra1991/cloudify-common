@@ -488,6 +488,8 @@ class RemoteWorkflowTask(WorkflowTask):
                 response_queue_name, durable=True
             )
             await response_queue.bind(self._task_target)
+            await self.workflow_context.internal.send_task_event(
+                TASK_SENDING, self)
             await exchange.publish(
                 message=aio_pika.Message(
                     body=json.dumps({

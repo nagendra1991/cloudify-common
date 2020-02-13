@@ -272,10 +272,12 @@ def send_task_event(cloudify_context,
     """
     # import here to avoid cyclic dependencies
     from cloudify.context import CloudifyContext
-    return _send_event(CloudifyContext(cloudify_context),
-                'task', event_type, message, args,
-                additional_context,
-                out_func)
+    return _send_event(
+        cloudify_context,
+        CloudifyContext(cloudify_context),
+        'task', event_type, message, args,
+        additional_context,
+        out_func)
 
 
 def _send_event(wctx, ctx, context_type, event_type,

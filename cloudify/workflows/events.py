@@ -19,28 +19,28 @@ from cloudify.workflows import tasks as tasks_api
 
 def send_task_event_func_remote(task, event_type, message,
                                 additional_context=None):
-    _send_task_event_func(task, event_type, message,
-                          out_func=logs.amqp_event_out,
-                          additional_context=additional_context)
+    return _send_task_event_func(task, event_type, message,
+        out_func=logs.amqp_event_out,
+        additional_context=additional_context)
 
 
 def send_task_event_func_local(task, event_type, message,
                                additional_context=None):
-    _send_task_event_func(task, event_type, message,
-                          out_func=logs.stdout_event_out,
-                          additional_context=additional_context)
+    return _send_task_event_func(task, event_type, message,
+        out_func=logs.stdout_event_out,
+        additional_context=additional_context)
 
 
 def _send_task_event_func(task, event_type, message, out_func,
                           additional_context):
     if task.cloudify_context is None:
-        logs.send_workflow_event(ctx=task.workflow_context,
+        return logs.send_workflow_event(ctx=task.workflow_context,
                                  event_type=event_type,
                                  message=message,
                                  out_func=out_func,
                                  additional_context=additional_context)
     else:
-        logs.send_task_event(cloudify_context=task.cloudify_context,
+        return logs.send_task_event(cloudify_context=task.cloudify_context,
                              event_type=event_type,
                              message=message,
                              out_func=out_func,
@@ -119,7 +119,7 @@ def send_task_event(state, task, send_event_func, event):
     if state in (tasks_api.TASK_FAILED, tasks_api.TASK_RESCHEDULED):
         additional_context['task_error_causes'] = event.get('causes')
 
-    send_event_func(task=task,
-                    event_type=event_type,
-                    message=message,
-                    additional_context=additional_context)
+    return send_event_func(task=task,
+        event_type=event_type,
+        message=message,
+        additional_context=additional_context)
