@@ -40,11 +40,13 @@ def _send_task_event_func(task, event_type, message, out_func,
                                  out_func=out_func,
                                  additional_context=additional_context)
     else:
-        return logs.send_task_event(cloudify_context=task.cloudify_context,
-                             event_type=event_type,
-                             message=message,
-                             out_func=out_func,
-                             additional_context=additional_context)
+        return logs.send_task_event(
+            wctx=task.workflow_context,
+            cloudify_context=task.cloudify_context,
+            event_type=event_type,
+            message=message,
+            out_func=out_func,
+            additional_context=additional_context)
 
 
 def _filter_task(task, state):
