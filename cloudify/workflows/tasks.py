@@ -501,11 +501,12 @@ class RemoteWorkflowTask(WorkflowTask):
                 ),
                 routing_key='operation'
             )
+            result = None
             async with response_queue.iterator() as q:
                 async for response in q:
-                    break
+                    result = json.loads(response.body).get('result')
             await self.workflow_context.internal.send_task_event(
-                TASK_SUCCEEDED, self)
+                TASK_SUCCEEDED, self, event={'result': result})
 
             await response_queue.delete()
             return self
