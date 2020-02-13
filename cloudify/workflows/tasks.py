@@ -487,6 +487,10 @@ class RemoteWorkflowTask(WorkflowTask):
             response_queue = await channel.declare_queue(
                 response_queue_name, durable=True
             )
+            logger.info(
+                '%s Sending task %s to %s', self.workflow_context.execution_id,
+                self.name, self._task_target
+            )
             await response_queue.bind(self._task_target)
             await self.workflow_context.internal.send_task_event(
                 TASK_SENDING, self)
@@ -508,7 +512,11 @@ class RemoteWorkflowTask(WorkflowTask):
                     break
             await self.workflow_context.internal.send_task_event(
                 TASK_SUCCEEDED, self, event={'result': result})
-
+            logger.info(
+                '%s Finished task %s on %s',
+                self.workflow_context.execution_id,
+                self.name, self._task_target
+            )
             asyncio.ensure_future(response_queue.delete())
             return self
         self.async_result = asyncio.ensure_future(_run_amqp_task())
