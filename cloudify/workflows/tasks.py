@@ -356,9 +356,6 @@ class WorkflowTask(object):
             self.async_result is None
         )
 
-    def _can_resend(self):
-        return False
-
 
 class RemoteWorkflowTask(WorkflowTask):
     """A WorkflowTask wrapping an AMQP based task"""
@@ -622,10 +619,6 @@ class RemoteWorkflowTask(WorkflowTask):
                     tenant)
         else:
             return MGMTWORKER_QUEUE, MGMTWORKER_QUEUE, None
-
-    def _can_resend(self):
-        return (self.cloudify_context['executor'] != 'host_agent' and
-                self._should_resume())
 
 
 class LocalWorkflowTask(WorkflowTask):
