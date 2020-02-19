@@ -558,9 +558,11 @@ class _RequestResponseHandlerBase(TaskConsumer):
         """Make the queue name for this handler based on the correlation id"""
         return '{0}_response_{1}'.format(self.exchange, correlation_id)
 
+    def make_response_queue(self, correlation_id):
+        self._declare_queue(self._queue_name(correlation_id))
+
     def publish(self, message, correlation_id, routing_key='',
                 expiration=None):
-        self._declare_queue(self._queue_name(correlation_id))
         if expiration is not None:
             # rabbitmq wants it to be a string
             expiration = '{0}'.format(expiration)
@@ -592,6 +594,7 @@ class BlockingRequestResponseHandler(_RequestResponseHandlerBase):
         correlation_id = kwargs.pop('correlation_id', None)
         if correlation_id is None:
             correlation_id = uuid.uuid4().hex
+        self.make_response_queue(correlation_id)
         super(BlockingRequestResponseHandler, self).publish(
             message, correlation_id, *args, **kwargs)
 
@@ -629,6 +632,7 @@ class CallbackRequestResponseHandler(_RequestResponseHandlerBase):
             message, correlation_id, *args, **kwargs)
 
     def wait_for_response(self, correlation_id, callback):
+        self.make_response_queue(correlation_id)
         self._callbacks[correlation_id] = callback
 
     def process(self, channel, method, properties, body):
