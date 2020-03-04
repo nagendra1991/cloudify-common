@@ -45,7 +45,7 @@ class CtxProxy(object):
             if isinstance(payload, ScriptException):
                 payload = dict(message=str(payload))
                 result_type = 'stop_operation'
-            result = json.dumps({
+            return json.dumps({
                 'type': result_type,
                 'payload': payload
             })
@@ -57,11 +57,10 @@ class CtxProxy(object):
                 'message': str(e),
                 'traceback': tb.getvalue()
             }
-            result = json.dumps({
+            return json.dumps({
                 'type': 'error',
                 'payload': payload
             })
-        return result
 
     def close(self):
         pass
@@ -130,7 +129,7 @@ class HTTPCtxProxy(CtxProxy):
         self.server.server_close()
 
     def _request_handler(self):
-        request = bottle.request.body.read()
+        request = bottle.request.body.read().decode('utf-8')
         with current_ctx.push(self.ctx):
             response = self.process(request)
             return bottle.LocalResponse(
@@ -157,7 +156,7 @@ class ZMQCtxProxy(CtxProxy):
             return False
         request = self.sock.recv()
         response = self.process(request)
-        self.sock.send(response)
+        self.sock.send_string(response)
         return True
 
     def close(self):
@@ -214,12 +213,7 @@ def process_ctx_request(ctx, args):
                 raise RuntimeError('Illegal argument while accessing dict')
             break
         elif callable(current):
-            kwargs = {}
-            remaining_args = args[index:]
-            if isinstance(remaining_args[-1], collections.MutableMapping):
-                kwargs = remaining_args[-1]
-                remaining_args = remaining_args[:-1]
-            current = current(*remaining_args, **kwargs)
+            current = current(*args[index:])
             break
         else:
             raise RuntimeError('{0} cannot be processed in {1}'
