@@ -922,7 +922,6 @@ class CloudifyContext(CommonContext):
                  failed to be written to the local file system.
 
         """
-
         return self._endpoint.download_resource(
             blueprint_id=self.blueprint.id,
             deployment_id=self.deployment.id,

@@ -272,8 +272,8 @@ class TaskDependencyGraph(object):
 
         :return: An iterator for terminated tasks
         """
-        return (task for task in self.tasks_iter()
-                if task.get_state() in tasks.TERMINATED_STATES)
+        return [task for task in self.tasks_iter()
+                if task.get_state() in tasks.TERMINATED_STATES]
 
     def _sent_tasks(self):
         """Tasks that are in the 'sent' state"""
