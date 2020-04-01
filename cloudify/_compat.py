@@ -22,7 +22,7 @@ PY2 = sys.version_info[0] == 2
 
 if PY2:
     import Queue as queue
-    from urllib import quote as urlquote, pathname2url, urlencode
+    from urllib import quote as urlquote, pathname2url, urlencode, unquote
     from urlparse import urlparse, urljoin, parse_qs
     try:
         from cStringIO import StringIO
@@ -43,7 +43,7 @@ else:
     import queue
     from io import StringIO
     from urllib.parse import (
-        quote as urlquote, urlparse, urljoin, parse_qs, urlencode
+        quote as urlquote, urlparse, urljoin, parse_qs, urlencode, unquote
     )
     from urllib.request import pathname2url
 
@@ -56,5 +56,6 @@ else:
 
 __all__ = [
     'PY2', 'queue', 'StringIO', 'reraise', 'text_type', 'urlquote',
-    'urlparse', 'exec_', 'urljoin', 'pathname2url', 'parse_qs', 'urlencode'
+    'urlparse', 'exec_', 'urljoin', 'pathname2url', 'parse_qs',
+    'urlencode', 'unquote'
 ]
