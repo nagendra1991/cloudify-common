@@ -27,23 +27,23 @@ from cloudify.constants import SECURITY_FILE_LOCATION
 
 def encrypt(data, key=None):
     key = key or _get_encryption_key()
-    fernet = Fernet256(str(key))
-    return fernet.encrypt(bytes(data))
+    fernet = Fernet256(key)
+    return fernet.encrypt(data.encode('utf-8')).decode('utf-8')
 
 
 def decrypt(encrypted_data, key=None):
     key = key or _get_encryption_key()
     try:
-        fernet = Fernet256(str(key))
+        fernet = Fernet256(key)
     except ValueError:
         return decrypt128(encrypted_data, key)
-    return fernet.decrypt(bytes(encrypted_data))
+    return fernet.decrypt(encrypted_data.encode('utf-8'))
 
 
 def decrypt128(encrypted_data, key=None):
     key = key or _get_encryption_key()
-    fernet = Fernet(str(key))
-    return fernet.decrypt(bytes(encrypted_data))
+    fernet = Fernet(key)
+    return fernet.decrypt(encrypted_data.encode('utf-8'))
 
 
 def _get_encryption_key():
@@ -53,7 +53,7 @@ def _get_encryption_key():
     # solution until we will have dynamic configuration mechanism
     with open(SECURITY_FILE_LOCATION) as security_conf_file:
         rest_security_conf = json.load(security_conf_file)
-        return rest_security_conf['encryption_key']
+    return rest_security_conf['encryption_key'].encode('utf-8')
 
 
 def generate_key_using_password(password, salt='salt_'):
